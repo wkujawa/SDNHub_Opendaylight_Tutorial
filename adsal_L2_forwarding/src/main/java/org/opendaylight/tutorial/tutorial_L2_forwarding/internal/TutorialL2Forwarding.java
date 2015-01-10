@@ -17,59 +17,51 @@
 
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.List;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import java.lang.String;
-import java.util.Map;
 import java.util.HashMap;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.osgi.framework.Bundle;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.BundleException;
-import org.osgi.framework.FrameworkUtil;
+import org.opendaylight.controller.sal.action.Action;
+import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.ConstructionException;
+import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
-import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
-import org.opendaylight.controller.sal.packet.ARP;
+import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
+import org.opendaylight.controller.sal.match.Match;
+import org.opendaylight.controller.sal.match.MatchField;
+import org.opendaylight.controller.sal.match.MatchType;
 import org.opendaylight.controller.sal.packet.BitBufferHelper;
 import org.opendaylight.controller.sal.packet.Ethernet;
-import org.opendaylight.controller.sal.packet.ICMP;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
 import org.opendaylight.controller.sal.packet.Packet;
 import org.opendaylight.controller.sal.packet.PacketResult;
 import org.opendaylight.controller.sal.packet.RawPacket;
-import org.opendaylight.controller.sal.action.Action;
-import org.opendaylight.controller.sal.action.Output;
-import org.opendaylight.controller.sal.action.Flood;
-import org.opendaylight.controller.sal.match.Match;
-import org.opendaylight.controller.sal.match.MatchType;
-import org.opendaylight.controller.sal.match.MatchField;
-import org.opendaylight.controller.sal.utils.EtherTypes;
+import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.sal.utils.Status;
-import org.opendaylight.controller.sal.utils.NetUtils;
+import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
-import org.opendaylight.controller.switchmanager.Subnet;
+import org.opendaylight.controller.topologymanager.ITopologyManager;
+import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.BundleException;
+import org.osgi.framework.FrameworkUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class TutorialL2Forwarding implements IListenDataPacket {
+public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManagerAware {
     private static final Logger logger = LoggerFactory
             .getLogger(TutorialL2Forwarding.class);
     private ISwitchManager switchManager = null;
     private IFlowProgrammerService programmer = null;
     private IDataPacketService dataPacketService = null;
+    private ITopologyManager topologyManager = null;
+    private IStatisticsManager statisticsManager = null;
     private Map<Long, NodeConnector> mac_to_port = new HashMap<Long, NodeConnector>();
     private String function = "hub";
 
@@ -106,25 +98,52 @@ public class TutorialL2Forwarding implements IListenDataPacket {
         }
     }
 
+    void setTopologyManager(ITopologyManager s) {
+        logger.debug("ITopologyManager set");
+        this.topologyManager = s;
+    }
+
+    void unsetTopologyManager(ITopologyManager s) {
+        if (this.topologyManager == s) {
+            logger.debug("ITopologyManager removed!");
+            this.topologyManager = null;
+        }
+    }
+
+    void setStatisticsManager(IStatisticsManager s) {
+        logger.debug("IStatisticsManager set");
+        this.statisticsManager = s;
+    }
+
+    void unsetStatisticsManager(IStatisticsManager s) {
+        if (this.statisticsManager == s) {
+            logger.debug("IStatisticsManager removed!");
+            this.statisticsManager = null;
+        }
+    }
+
     /**
      * Function called by the dependency manager when all the required
      * dependencies are satisfied
      *
      */
     void init() {
-        logger.info("Initialized");
-        // Disabling the SimpleForwarding and ARPHandler bundle to not conflict with this one
-        BundleContext bundleContext = FrameworkUtil.getBundle(this.getClass()).getBundleContext();
-        for(Bundle bundle : bundleContext.getBundles()) {
+        logger.info("Initialized by vtx");
+        // Disabling the SimpleForwarding and ARPHandler bundle to not conflict
+        // with this one
+        BundleContext bundleContext = FrameworkUtil.getBundle(this.getClass())
+                .getBundleContext();
+        for (Bundle bundle : bundleContext.getBundles()) {
             if (bundle.getSymbolicName().contains("simpleforwarding")) {
                 try {
                     bundle.uninstall();
                 } catch (BundleException e) {
-                    logger.error("Exception in Bundle uninstall "+bundle.getSymbolicName(), e); 
-                }   
-            }   
-        }   
- 
+                    logger.error(
+                            "Exception in Bundle uninstall "
+                                    + bundle.getSymbolicName(), e);
+                }
+            }
+        }
     }
 
     /**
@@ -144,6 +163,9 @@ public class TutorialL2Forwarding implements IListenDataPacket {
      */
     void start() {
         logger.info("Started");
+        logger.info("topologyManager.getEdges(): "+topologyManager.getEdges());
+        logger.info("topologyManager.getEdges(): "+topologyManager.getEdges());
+        logger.info("topologyManager.getNodeConnectorWithHost(): "+topologyManager.getNodeConnectorWithHost());
     }
 
     /**
@@ -184,6 +206,7 @@ public class TutorialL2Forwarding implements IListenDataPacket {
             return PacketResult.IGNORED;
         }
 
+        logger.info("Got packet in"+inPkt.toString());
         NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
 
         // Hub implementation
@@ -250,5 +273,21 @@ public class TutorialL2Forwarding implements IListenDataPacket {
         } else {
             return true;
         }
+    }
+
+    @Override
+    public void edgeOverUtilized(Edge arg0) {
+        logger.info("edgeOverUtilized");
+    }
+
+    @Override
+    public void edgeUpdate(List<TopoEdgeUpdate> arg0) {
+        logger.info("edgeUpdate");
+        logger.info("Update:" + arg0.toString());
+    }
+
+    @Override
+    public void edgeUtilBackToNormal(Edge arg0) {
+        logger.info("edgeUtilBackToNormal");
     }
 }

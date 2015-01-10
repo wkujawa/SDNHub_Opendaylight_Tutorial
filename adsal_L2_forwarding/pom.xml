@@ -29,7 +29,10 @@
               org.opendaylight.controller.sal.match,
               org.opendaylight.controller.sal.action,
               org.opendaylight.controller.sal.flowprogrammer,
+              org.opendaylight.controller.sal.topology,
               org.opendaylight.controller.switchmanager,
+              org.opendaylight.controller.topologymanager,
+              org.opendaylight.controller.statisticsmanager,
               org.apache.felix.dm,
               org.osgi.service.component,
               org.slf4j,
@@ -72,6 +75,16 @@
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>switchmanager</artifactId>
       <version>${switchmanager.api.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>topologymanager</artifactId>
+      <version>${topologymanager.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>statisticsmanager</artifactId>
+      <version>${statisticsmanager.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
