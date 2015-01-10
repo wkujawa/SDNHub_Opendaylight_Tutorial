@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.swing.JWindow;
+
 import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.ConstructionException;
@@ -47,6 +49,8 @@ import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Main;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -63,6 +67,7 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
     private ITopologyManager topologyManager = null;
     private IStatisticsManager statisticsManager = null;
     private Map<Long, NodeConnector> mac_to_port = new HashMap<Long, NodeConnector>();
+    private NetworkMonitor networkMonitor = null;
     private String function = "hub";
 
     void setDataPacketService(IDataPacketService s) {
@@ -166,6 +171,9 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
         logger.info("topologyManager.getEdges(): "+topologyManager.getEdges());
         logger.info("topologyManager.getEdges(): "+topologyManager.getEdges());
         logger.info("topologyManager.getNodeConnectorWithHost(): "+topologyManager.getNodeConnectorWithHost());
+    
+        logger.info("Starting Network Monitor..");
+        networkMonitor = new NetworkMonitor();
     }
 
     /**
@@ -175,6 +183,7 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
      *
      */
     void stop() {
+        networkMonitor.stop();
         logger.info("Stopped");
     }
 
@@ -206,7 +215,8 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
             return PacketResult.IGNORED;
         }
 
-        logger.info("Got packet in"+inPkt.toString());
+        logger.debug("Got packet in"+inPkt.toString());
+        
         NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
 
         // Hub implementation
