@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.swing.JWindow;
-
 import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
@@ -52,7 +50,6 @@ import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Main;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
@@ -61,7 +58,8 @@ import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManagerAware, IfNewHostNotify{
+public class TutorialL2Forwarding implements IListenDataPacket,
+        ITopologyManagerAware, IfNewHostNotify {
     private static final Logger logger = LoggerFactory
             .getLogger(TutorialL2Forwarding.class);
     private ISwitchManager switchManager = null;
@@ -84,8 +82,7 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
         }
     }
 
-    public void setFlowProgrammerService(IFlowProgrammerService s)
-    {
+    public void setFlowProgrammerService(IFlowProgrammerService s) {
         this.programmer = s;
     }
 
@@ -142,6 +139,7 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
             this.hostTracker = null;
         }
     }
+
     /**
      * Function called by the dependency manager when all the required
      * dependencies are satisfied
@@ -169,34 +167,33 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
     }
 
     /**
-     * Function called by the dependency manager when at least one
-     * dependency become unsatisfied or when the component is shutting
-     * down because for example bundle is being stopped.
+     * Function called by the dependency manager when at least one dependency
+     * become unsatisfied or when the component is shutting down because for
+     * example bundle is being stopped.
      *
      */
     void destroy() {
     }
 
     /**
-     * Function called by dependency manager after "init ()" is called
-     * and after the services provided by the class are registered in
-     * the service registry
+     * Function called by dependency manager after "init ()" is called and after
+     * the services provided by the class are registered in the service registry
      *
      */
     void start() {
         logger.info("Started");
         networkMonitor.setStatisticsManager(statisticsManager);
-        //TODO Add switches
+        // TODO Add switches
         networkMonitor.addEdges(topologyManager.getEdges());
-        for(HostNodeConnector c: hostTracker.getAllHosts()) {
+        for (HostNodeConnector c : hostTracker.getAllHosts()) {
             networkMonitor.addHost(c);
         }
     }
 
     /**
-     * Function called by the dependency manager before the services
-     * exported by the component are unregistered, this will be
-     * followed by a "destroy ()" calls
+     * Function called by the dependency manager before the services exported by
+     * the component are unregistered, this will be followed by a "destroy ()"
+     * calls
      *
      */
     void stop() {
@@ -208,8 +205,8 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
         NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
         Node incoming_node = incoming_connector.getNode();
 
-        Set<NodeConnector> nodeConnectors =
-                this.switchManager.getUpNodeConnectors(incoming_node);
+        Set<NodeConnector> nodeConnectors = this.switchManager
+                .getUpNodeConnectors(incoming_node);
 
         for (NodeConnector p : nodeConnectors) {
             if (!p.equals(incoming_connector)) {
@@ -225,35 +222,35 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
     }
 
     ////////////////////
-    //IListenDataPacket
-    ///////////////////
+    // IListenDataPacket
+    ////////////////////
     @Override
     public PacketResult receiveDataPacket(RawPacket inPkt) {
         if (inPkt == null) {
             return PacketResult.IGNORED;
         }
 
-        logger.debug("Got packet in"+inPkt.toString());
-        
+        logger.debug("Got packet in" + inPkt.toString());
+
         NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
 
         // Hub implementation
         if (function.equals("hub")) {
             floodPacket(inPkt);
         } else {
-            Packet formattedPak = this.dataPacketService.decodeDataPacket(inPkt);
+            Packet formattedPak = this.dataPacketService
+                    .decodeDataPacket(inPkt);
             if (!(formattedPak instanceof Ethernet)) {
                 return PacketResult.IGNORED;
             }
 
             learnSourceMAC(formattedPak, incoming_connector);
-            NodeConnector outgoing_connector = 
-                knowDestinationMAC(formattedPak);
+            NodeConnector outgoing_connector = knowDestinationMAC(formattedPak);
             if (outgoing_connector == null) {
                 floodPacket(inPkt);
             } else {
                 if (!programFlow(formattedPak, incoming_connector,
-                            outgoing_connector)) {
+                        outgoing_connector)) {
                     return PacketResult.IGNORED;
                 }
                 inPkt.setOutgoingNodeConnector(outgoing_connector);
@@ -263,49 +260,50 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
         return PacketResult.CONSUME;
     }
 
-    private void learnSourceMAC(Packet formattedPak, NodeConnector incoming_connector) {
-        byte[] srcMAC = ((Ethernet)formattedPak).getSourceMACAddress();
+    private void learnSourceMAC(Packet formattedPak,
+            NodeConnector incoming_connector) {
+        byte[] srcMAC = ((Ethernet) formattedPak).getSourceMACAddress();
         long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
         this.mac_to_port.put(srcMAC_val, incoming_connector);
     }
 
     private NodeConnector knowDestinationMAC(Packet formattedPak) {
-        byte[] dstMAC = ((Ethernet)formattedPak).getDestinationMACAddress();
+        byte[] dstMAC = ((Ethernet) formattedPak).getDestinationMACAddress();
         long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
-        return this.mac_to_port.get(dstMAC_val) ;
+        return this.mac_to_port.get(dstMAC_val);
     }
 
-    private boolean programFlow(Packet formattedPak, 
-            NodeConnector incoming_connector, 
-            NodeConnector outgoing_connector) {
-        byte[] dstMAC = ((Ethernet)formattedPak).getDestinationMACAddress();
+    private boolean programFlow(Packet formattedPak,
+            NodeConnector incoming_connector, NodeConnector outgoing_connector) {
+        byte[] dstMAC = ((Ethernet) formattedPak).getDestinationMACAddress();
 
         Match match = new Match();
-        match.setField( new MatchField(MatchType.IN_PORT, incoming_connector) );
-        match.setField( new MatchField(MatchType.DL_DST, dstMAC.clone()) );
+        match.setField(new MatchField(MatchType.IN_PORT, incoming_connector));
+        match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
 
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(outgoing_connector));
 
         Flow f = new Flow(match, actions);
-        f.setIdleTimeout((short)5);
+        f.setIdleTimeout((short) 5);
 
         // Modify the flow on the network node
         Node incoming_node = incoming_connector.getNode();
         Status status = programmer.addFlow(incoming_node, f);
 
         if (!status.isSuccess()) {
-            logger.warn("SDN Plugin failed to program the flow: {}. The failure is: {}",
+            logger.warn(
+                    "SDN Plugin failed to program the flow: {}. The failure is: {}",
                     f, status.getDescription());
             return false;
         } else {
             return true;
         }
     }
-    
-    ///////////////////////
-    //ITopologyManagerAware
-    ///////////////////////
+
+    ////////////////////////
+    // ITopologyManagerAware
+    ////////////////////////
     @Override
     public void edgeOverUtilized(Edge arg0) {
         logger.info("edgeOverUtilized");
@@ -323,9 +321,9 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
         logger.info("edgeUtilBackToNormal");
     }
 
-    /////////////////
-    //IfNewHostNotify
-    /////////////////
+    //////////////////
+    // IfNewHostNotify
+    //////////////////
     @Override
     public void notifyHTClient(HostNodeConnector arg0) {
         logger.info("notifyHTClient: {} connected to {}", arg0
