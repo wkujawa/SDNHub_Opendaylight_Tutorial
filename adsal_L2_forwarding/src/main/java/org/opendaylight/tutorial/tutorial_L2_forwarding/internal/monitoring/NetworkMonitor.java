@@ -5,14 +5,21 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Paint;
 import java.awt.Stroke;
-import java.awt.event.WindowEvent;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 import org.apache.commons.collections15.Transformer;
+import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
+import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
+import org.opendaylight.controller.sal.core.Property;
+import org.opendaylight.controller.sal.core.UpdateType;
+import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,6 +27,7 @@ import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.UndirectedSparseMultigraph;
+import edu.uci.ics.jung.graph.util.EdgeType;
 import edu.uci.ics.jung.visualization.VisualizationViewer;
 import edu.uci.ics.jung.visualization.control.DefaultModalGraphMouse;
 import edu.uci.ics.jung.visualization.control.ModalGraphMouse.Mode;
@@ -30,7 +38,6 @@ public class NetworkMonitor {
     private static final Logger logger = LoggerFactory
             .getLogger(NetworkMonitor.class);
     
-	private final static String BASE_URI = "http://localhost:8080/";
 	private final int UPDATE_INTERVAL = 10000;
 	private MonitorThread mWorker;
 	
@@ -71,20 +78,10 @@ public class NetworkMonitor {
 //				System.out.println("INFO: add.");
 //				mGraph.addVertex(new Device("12", "MY"));
 				// !!!! DEBUG
-				
-				if(updateDevices()) {
-					System.out.println("INFO: Topology have changed.");
-				}
 
 				processStatistics();
 				
-				SwingUtilities.invokeLater(new Runnable() {
-					@Override
-					public void run() {
-						mVisualizationViewer.repaint();		
-						System.out.println("INFO: refresh");
-					}
-				});
+				repaint();
 				
 /*				//Debug
 				printTopology(mCurrentTopology);
@@ -149,7 +146,7 @@ public class NetworkMonitor {
 		//Nodes
         Transformer<Device,Paint> vertexPaint = new Transformer<Device,Paint>() {
             public Paint transform(Device device) {
-            	if (device.getType().equals(Device.UNKNOWN_DEV_TYPE)) {
+            	if (device.getType().equals("HOST")) {
             		return Color.BLUE;
             	} else {
             		return Color.RED;
@@ -188,70 +185,166 @@ public class NetworkMonitor {
 		mFrame.setVisible(true);
 	}
 	
-	/**
-	 * Gets informations about devices from Topology.
-	 * Keeps Device map and //TODO graph up to date.
-	 */
-	private boolean updateDevices() {
-/*		boolean wasUpdated = false;
-		if (mCurrentTopology != null) {
-			for (EdgeProperties edgeProp : mCurrentTopology.getEdgeProperties()) {
-				Edge edge = edgeProp.getEdge();
-			
-				Node headNode = edge.getHeadNodeConnector().getNodeConnectorNode();
-				Node tailNode = edge.getTailNodeConnector().getNodeConnectorNode();
-
-				//TODO handle deleting of nodes and edges
-				
-				if (updateDevice(headNode)) {
-					wasUpdated = true;
-				}
-				if (updateDevice(tailNode)) {
-					wasUpdated = true;
-				}
-				
-				// Updating edge
-				//TODO handle multiple edges between same nodes
-				Device headDevice = mDevices.get(headNode.getNodeIDString());
-				Device tailDevice = mDevices.get(tailNode.getNodeIDString());
-				if( null==mGraph.findEdge(headDevice, tailDevice) ) {
-					System.out.println("INFO:Adding link");
-					String headConnectorId = edge.getHeadNodeConnector().getNodeConnectorIDString();
-					String tailConnectorId = edge.getTailNodeConnector().getNodeConnectorIDString();
-					Port headPort = headDevice.createPort(headConnectorId);
-					Port tailPort = tailDevice.createPort(tailConnectorId);
-					Link link = new Link(headConnectorId+":"+tailConnectorId,
-							headPort,
-							tailPort);
-					headPort.setTargetPort(tailPort);
-					headPort.setLink(link);
-					tailPort.setTargetPort(headPort);
-					tailPort.setLink(link);
-					mGraph.addEdge(link, headDevice, tailDevice, EdgeType.UNDIRECTED);
-				} else {
-					System.out.println("TRACE: Link exist");
-				}
-				
-			}
-		} else {
-			System.out.println("ERROR: No topology to update");
-		}		
-		return wasUpdated;*/
-	    return false;
+	private void repaint() {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                mVisualizationViewer.repaint();     
+            }
+        });
 	}
 	
-	private boolean updateDevice(Node node) {
-/*		String id = node.getNodeIDString();
+	/**
+	 * Add edges to graph
+	 * @param edgesMap
+	 */
+	public void addEdges(Map<Edge, Set<Property>> edgesMap) {
+	    for(Edge edge : edgesMap.keySet()) {
+	        edgeUpdate(edge, UpdateType.ADDED, edgesMap.get(edge));
+	    }
+	    repaint();
+	}
+	
+	/**
+	 * Apply edge update
+	 * @param arg0 - list of updates
+	 */
+	public void edgeUpdate(List<TopoEdgeUpdate> arg0) {
+	    for (TopoEdgeUpdate edgeUpdate : arg0) {
+            Set<Property> props =  edgeUpdate.getProperty();
+            UpdateType type = edgeUpdate.getUpdateType();
+            Edge edge = edgeUpdate.getEdge();
+            
+            edgeUpdate(edge, type, props);
+        }
+	    repaint();
+	}
+	
+	/**
+	 * Applies edge update to graph
+	 * @param edge - edge
+	 * @param type - type of operation
+	 * @param props - edge properties
+	 */
+	private void edgeUpdate(Edge edge, UpdateType type, Set<Property> props) {
+        Node headNode = edge.getHeadNodeConnector().getNode();
+        Node tailNode = edge.getTailNodeConnector().getNode();
+        
+        switch (type) {
+        case ADDED:
+            addDevice(headNode);
+            addDevice(tailNode);
+            
+            Device headDevice = mDevices.get(headNode.getNodeIDString());
+            Device tailDevice = mDevices.get(tailNode.getNodeIDString());
+            if( null==mGraph.findEdge(headDevice, tailDevice) ) {
+                logger.info("Adding link: {} <---> {}",headDevice, tailDevice);
+                String headConnectorId = edge.getHeadNodeConnector().getNodeConnectorIDString();
+                String tailConnectorId = edge.getTailNodeConnector().getNodeConnectorIDString();
+                Port headPort = headDevice.createPort(headConnectorId);
+                Port tailPort = tailDevice.createPort(tailConnectorId);
+                Link link = new Link(headConnectorId+":"+tailConnectorId,
+                        headPort,
+                        tailPort);
+                headPort.setTargetPort(tailPort);
+                headPort.setLink(link);
+                tailPort.setTargetPort(headPort);
+                tailPort.setLink(link);
+                mGraph.addEdge(link, headDevice, tailDevice, EdgeType.UNDIRECTED);
+            } else {
+                logger.info("Link already exists: {} <---> {}",headDevice, tailDevice);
+            }
+            
+            break;
+        case CHANGED:
+            // TODO
+            logger.error("edgeUpdate type=CHANGED not implemented");
+            break;
+        case REMOVED:
+            //TODO just remove edge
+            //removeDevice(headNode);
+            //removeDevice(tailNode);
+            break;
+        default:
+            break;
+        }
+	}
+	
+	/**
+	 * Adds host to graph
+	 * @param arg0
+	 */
+    public void addHost(HostNodeConnector arg0) {
+        String id = arg0.getNetworkAddressAsString();
+        if (!mDevices.containsKey(id)) {
+            logger.info("New host id: {}",id);
+            Device device = new Device(id, "HOST");
+            mDevices.put(id, device);
+            mGraph.addVertex(device);
+            
+            // Create link
+            Device tailDevice = mDevices.get(arg0.getnodeconnectorNode().getNodeIDString());
+            String headConnectorId = id;
+            String tailConnectorId = arg0.getnodeConnector().getNodeConnectorIDString();
+            Port headPort = device.createPort(headConnectorId);
+            Port tailPort = tailDevice.createPort(tailConnectorId);
+            Link link = new Link(headConnectorId+":"+tailConnectorId,
+                    headPort,
+                    tailPort);
+            headPort.setTargetPort(tailPort);
+            headPort.setLink(link);
+            tailPort.setTargetPort(headPort);
+            tailPort.setLink(link);
+            mGraph.addEdge(link, device, tailDevice, EdgeType.UNDIRECTED);
+        }
+        repaint();
+    }
+    
+    /**
+     * Removes host from graph
+     * @param arg0
+     */
+    public void removeHost(HostNodeConnector arg0) {
+        String id = arg0.getNetworkAddressAsString();
+        if (mDevices.containsKey(id)) {
+            logger.info("Removing host : "+id);
+            mGraph.removeVertex(mDevices.get(id));
+            mDevices.remove(id);
+            //TODO removing also edges related to vertex
+        }
+        repaint();
+    }
+	
+	/**
+	 * Adds device to graph
+	 * @param node
+	 * @return true if node added, false if node already exists
+	 */
+	private boolean addDevice(Node node) {
+		String id = node.getNodeIDString();
 		if (!mDevices.containsKey(id)) {
-			System.out.println("INFO:New device : "+id);
+			logger.info("New device id: {} type: {}",id, node.getType());
 			Device device = new Device(id, node.getType());
-			mDevices.put(id, device); //TODO check if ID is unique or connected with type
+			mDevices.put(id, device);
 			mGraph.addVertex(device);
 			return true;
 		}
-		return false;*/
-	    return false;
+		return false;
 	}
+	
+	   /**
+     * Removes device and edges to it from graph
+     * @param node
+     */
+    private void removeDevice(Node node) {
+        String id = node.getNodeIDString();
+        if (mDevices.containsKey(id)) {
+            logger.info("Removing device : "+id);
+            mGraph.removeVertex(mDevices.get(id));
+            mDevices.remove(id);
+            //TODO removing also edges related to vertex
+        }
+    }
 	
 	/**
 	 * Update statistics for ports based on received data.

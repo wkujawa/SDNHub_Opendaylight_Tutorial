@@ -15,6 +15,7 @@ import java.util.Dictionary;
 import org.apache.felix.dm.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.sal.core.ComponentActivatorAbstractBase;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
@@ -80,7 +81,9 @@ public class Activator extends ComponentActivatorAbstractBase {
             Dictionary<String, String> props = new Hashtable<String, String>();
             props.put("salListenerName", "tutorial_L2_forwarding");
             props.put("topoListenerName", "tutorial_L2_forwarding");
-            c.setInterface(new String[] { IListenDataPacket.class.getName(), ITopologyManagerAware.class.getName() }, props);
+            c.setInterface(new String[] { IListenDataPacket.class.getName(),
+                    ITopologyManagerAware.class.getName(),
+                    IfNewHostNotify.class.getName() }, props);
 
             // register dependent modules
             c.add(createContainerServiceDependency(containerName).setService(

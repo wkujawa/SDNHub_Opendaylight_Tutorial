@@ -25,6 +25,8 @@ import java.util.Set;
 
 import javax.swing.JWindow;
 
+import org.opendaylight.controller.hosttracker.IfNewHostNotify;
+import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.ConstructionException;
@@ -58,7 +60,7 @@ import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManagerAware {
+public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManagerAware, IfNewHostNotify{
     private static final Logger logger = LoggerFactory
             .getLogger(TutorialL2Forwarding.class);
     private ISwitchManager switchManager = null;
@@ -149,6 +151,8 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
                 }
             }
         }
+        logger.info("Starting Network Monitor..");
+        networkMonitor = new NetworkMonitor();
     }
 
     /**
@@ -168,12 +172,8 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
      */
     void start() {
         logger.info("Started");
-        logger.info("topologyManager.getEdges(): "+topologyManager.getEdges());
-        logger.info("topologyManager.getEdges(): "+topologyManager.getEdges());
-        logger.info("topologyManager.getNodeConnectorWithHost(): "+topologyManager.getNodeConnectorWithHost());
-    
-        logger.info("Starting Network Monitor..");
-        networkMonitor = new NetworkMonitor();
+        logger.info("topologyManager.getNodesWithNodeConnectorHost(): "+topologyManager.getNodesWithNodeConnectorHost());
+        networkMonitor.addEdges(topologyManager.getEdges());
     }
 
     /**
@@ -207,8 +207,9 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
         }
     }
 
-
-
+    ////////////////////
+    //IListenDataPacket
+    ///////////////////
     @Override
     public PacketResult receiveDataPacket(RawPacket inPkt) {
         if (inPkt == null) {
@@ -284,7 +285,10 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
             return true;
         }
     }
-
+    
+    ///////////////////////
+    //ITopologyManagerAware
+    ///////////////////////
     @Override
     public void edgeOverUtilized(Edge arg0) {
         logger.info("edgeOverUtilized");
@@ -294,10 +298,30 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
     public void edgeUpdate(List<TopoEdgeUpdate> arg0) {
         logger.info("edgeUpdate");
         logger.info("Update:" + arg0.toString());
+        networkMonitor.edgeUpdate(arg0);
     }
 
     @Override
     public void edgeUtilBackToNormal(Edge arg0) {
         logger.info("edgeUtilBackToNormal");
+    }
+
+    /////////////////
+    //IfNewHostNotify
+    /////////////////
+    @Override
+    public void notifyHTClient(HostNodeConnector arg0) {
+        logger.info("notifyHTClient: {} connected to {}", arg0
+                .getNetworkAddressAsString(), arg0.getnodeconnectorNode()
+                .getNodeIDString());
+        networkMonitor.addHost(arg0);
+    }
+
+    @Override
+    public void notifyHTClientHostRemoved(HostNodeConnector arg0) {
+        logger.info("notifyHTClientHostRemoved: {} removed from {}", arg0
+                .getNetworkAddressAsString(), arg0.getnodeconnectorNode()
+                .getNodeIDString());
+        networkMonitor.removeHost(arg0);
     }
 }

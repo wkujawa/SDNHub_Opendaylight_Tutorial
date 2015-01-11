@@ -75,6 +75,11 @@
       <artifactId>sal</artifactId>
       <version>${sal.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>hosttracker</artifactId>
+      <version>${hosttracker.implementation.version}</version>
+    </dependency>
 
     <!-- third party -->
     <dependency>
