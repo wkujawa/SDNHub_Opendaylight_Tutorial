@@ -19,8 +19,10 @@ import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.Property;
 import org.opendaylight.controller.sal.core.UpdateType;
+import org.opendaylight.controller.sal.reader.NodeConnectorStatistics;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
+import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,15 +44,13 @@ public class NetworkMonitor {
     private final int UPDATE_INTERVAL = 10000;
     private MonitorThread mWorker;
     private IStatisticsManager mStatisticsManager = null;
+    private ISwitchManager mSwitchManager = null;
 
     private JFrame mFrame;
     private Graph<Device, Link> mGraph;
     private Layout<Device, Link> mVisualizer;
     private VisualizationViewer<Device, Link> mVisualizationViewer;
 
-    // private AllPortStatistics mPreviousStatistics;
-    private long mPreviousTime;
-    // private AllPortStatistics mCurrentStatistics;
     private long mCurrentTime;
 
     /**
@@ -64,19 +64,11 @@ public class NetworkMonitor {
             super.run();
             logger.info("Monitor thread started.");
             while (!isInterrupted()) {
-                // mPreviousStatistics = mCurrentStatistics;
-                // mPreviousTime = mCurrentTime;
-                // mCurrentStatistics = getStatistics();
-                // mCurrentTime = System.currentTimeMillis();
+                mCurrentTime = System.currentTimeMillis(); //TODO maybe it can be taken from statistics
 
                 processStatistics();
 
                 repaint();
-
-                /*
-                 * //Debug printStatistics(mCurrentStatistics);
-                 * printDevicesInfo();
-                 */// Debug
 
                 try {
                     Thread.sleep(UPDATE_INTERVAL);
@@ -106,6 +98,9 @@ public class NetworkMonitor {
 
     private void init() {
         mWorker = new MonitorThread();
+    }
+
+    public void start() {
         mWorker.start();
     }
 
@@ -339,7 +334,7 @@ public class NetworkMonitor {
      * @param node
      * @return device
      */
-    private Device addDevice(Node node) {
+    public Device addDevice(Node node) {
         String id = node.getNodeIDString();
         if (!mDevices.containsKey(id)) {
             logger.info("New device id: {} type: {}", id, node.getType());
@@ -356,7 +351,7 @@ public class NetworkMonitor {
      * 
      * @param node
      */
-    private void removeDevice(Node node) {
+    public void removeDevice(Node node) {
         String id = node.getNodeIDString();
         if (mDevices.containsKey(id)) {
             logger.info("Removing device : " + id);
@@ -376,79 +371,67 @@ public class NetworkMonitor {
     }
 
     /**
+     * Sets Switch Manager
+     * 
+     * @param switchManager
+     */
+    public void setSwitchManager(ISwitchManager switchManager) {
+        this.mSwitchManager = switchManager;
+    }
+
+    /**
      * Update statistics for ports based on received data.
      */
     private void processStatistics() {
-        /*
-         * //Process statistics and save it in ports. for (PortStatistics
-         * portStat : mCurrentStatistics.getPortStatistics()) { Device device =
-         * mDevices.get(portStat.getNode().getNodeIDString()); for
-         * (NodeConnectorStatistics nodeStat : portStat.getPortStatistic()) {
-         * String connectorId =
-         * nodeStat.getNodeConnector().getNodeConnectorIDString(); Port port =
-         * device.getPort(connectorId); if (port == null) { // New port or most
-         * probably port not connected to another known switch // So create one.
-         * port = device.createPort(connectorId); }
-         * 
-         * port.updateStatistics(mCurrentTime, nodeStat.getTransmitBytes(),
-         * nodeStat.getReceiveBytes());
-         * 
-         * //Add unknown endpoints for ports // TODO later some of them might be
-         * detected as some kind of device. if (port.getTargetPort() == null &&
-         * !connectorId.equals("0")) { // Don't know what is port "0" - ignoring
-         * it Device fakeDev = new Device(connectorId, Device.UNKNOWN_DEV_TYPE);
-         * Port fakePort = fakeDev.createPort(Port.FAKE_PORT); Link link = new
-         * Link(connectorId+":"+fakePort.getPortId(), port, fakePort);
-         * port.setTargetPort(fakePort); port.setLink(link);
-         * fakePort.setTargetPort(port); fakePort.setLink(link);
-         * mGraph.addVertex(fakeDev); mGraph.addEdge(link, device, fakeDev,
-         * EdgeType.UNDIRECTED); } } }
-         * 
-         * //Refresh devices statistics based on update ports. for (Device
-         * device : mDevices.values()) {
-         * device.updateLinksStatistics(mCurrentTime); }
-         */
+        for (Node node : mSwitchManager.getNodes()) {
+            List<NodeConnectorStatistics> stats = mStatisticsManager
+                    .getNodeConnectorStatistics(node);
+
+            Device device = mDevices.get(node.getNodeIDString());
+            if (device == null) {
+                continue;
+            }
+            for (NodeConnectorStatistics nodeStat : stats) {
+                String connectorId = nodeStat.getNodeConnector().getNodeConnectorIDString();
+                Port port = device.getPort(connectorId);
+                if (port == null) {
+                    // New port or most probably port not connected to another known switch
+                    // So create one.
+                    port = device.createPort(connectorId);
+                }
+
+                port.updateStatistics(mCurrentTime, nodeStat.getTransmitByteCount(), nodeStat.getReceiveByteCount());
+
+           /*     //TODO below should be not needed or should be temporary and when device discovered it should be switched with it
+                //Add unknown endpoints for ports // TODO later some of them might be detected as some kind of device.
+                if (port.getTargetPort() == null && !connectorId.equals("0")) { // Don't know what is port "0" - ignoring it
+                    Device fakeDev = new Device(connectorId, Device.UNKNOWN_DEV_TYPE);
+                    Port fakePort = fakeDev.createPort(Port.FAKE_PORT);
+                    Link link = new Link(connectorId+":"+fakePort.getPortId(),
+                            port,
+                            fakePort);
+                    port.setTargetPort(fakePort);
+                    port.setLink(link);
+                    fakePort.setTargetPort(port);
+                    fakePort.setLink(link);
+                    mGraph.addVertex(fakeDev);
+                    mGraph.addEdge(link, device, fakeDev, EdgeType.UNDIRECTED);
+                }*/
+            }
+        }
+
+        //Refresh devices statistics based on update ports.
+        for (Device device : mDevices.values()) {
+            device.updateLinksStatistics(mCurrentTime);
+        }
     }
 
-    /*
-     * private Topology getTopology() { // TODO use
-     * MediaType.APPLICATION_XML_TYP in requests, json not working - no
-     * annotations for json in rest-api jars ? return
-     * mTarget.path("/controller/nb/v2/topology/default"
-     * ).request(MediaType.APPLICATION_XML_TYPE).get(Topology.class);
-     * 
-     * }
-     * 
-     * private void printTopology(Topology topo) {
-     * System.out.println("*** Topology ***"); System.out.println("Edges : " +
-     * topo.getEdgeProperties().size()); //TODO check for nullptr when empty
-     * topo for (EdgeProperties edgeProp : topo.getEdgeProperties()) { Edge edge
-     * = edgeProp.getEdge();
-     * System.out.println("Edge : "+edge.getHeadNodeConnector
-     * ().getNodeConnectorIDString() + " --- " +
-     * edge.getTailNodeConnector().getNodeConnectorIDString()); }
-     * System.out.println("****************"); }
-     * 
-     * private AllPortStatistics getStatistics() { return
-     * mTarget.path("/controller/nb/v2/statistics/default/port"
-     * ).request(MediaType.APPLICATION_XML_TYPE).get(AllPortStatistics.class);
-     * 
-     * }
-     * 
-     * private void printStatistics(AllPortStatistics statistics) {
-     * System.out.println("*** Statistics ***"); for (PortStatistics portStat :
-     * statistics.getPortStatistics()) { System.out.println("Node : " +
-     * portStat.getNode().getNodeIDString()); for ( NodeConnectorStatistics
-     * nodeStat : portStat.getPortStatistic()) {
-     * System.out.println("Connector : " +
-     * nodeStat.getNodeConnector().getNodeConnectorIDString() + " recvBytes: " +
-     * nodeStat.getReceiveBytes() + " sendBytes: " +
-     * nodeStat.getTransmitBytes()); } }
-     * System.out.println("******************"); }
-     * 
-     * private void printDevicesInfo() {
-     * System.out.println("*** Devices Info ***"); for (Device device :
-     * mDevices.values()) { System.out.println(device.debugInfo()); }
-     * System.out.println("********************"); }
-     */
+    private void printDevicesInfo() {
+        System.out.println("*** Devices Info ***");
+        for (Device device : mDevices.values()) {
+            System.out.println(device.debugInfo());
+        }
+        System.out.println("********************");
+    }
+
 }

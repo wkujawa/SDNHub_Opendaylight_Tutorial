@@ -183,11 +183,17 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     void start() {
         logger.info("Started");
         networkMonitor.setStatisticsManager(statisticsManager);
-        // TODO Add switches
+        networkMonitor.setSwitchManager(switchManager);
+        for (Node node : switchManager.getNodes()) {
+            networkMonitor.addDevice(node);
+        }
+        //TODO get notifications for added and removed switches
         networkMonitor.addEdges(topologyManager.getEdges());
         for (HostNodeConnector c : hostTracker.getAllHosts()) {
             networkMonitor.addHost(c);
         }
+
+        networkMonitor.start();
     }
 
     /**
