@@ -25,6 +25,7 @@ import java.util.Set;
 
 import javax.swing.JWindow;
 
+import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
@@ -68,6 +69,7 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
     private IDataPacketService dataPacketService = null;
     private ITopologyManager topologyManager = null;
     private IStatisticsManager statisticsManager = null;
+    private IfIptoHost hostTracker = null;
     private Map<Long, NodeConnector> mac_to_port = new HashMap<Long, NodeConnector>();
     private NetworkMonitor networkMonitor = null;
     private String function = "hub";
@@ -129,13 +131,24 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
         }
     }
 
+    void setHostTracker(IfIptoHost s) {
+        logger.debug("IfIptoHost set");
+        this.hostTracker = s;
+    }
+
+    void unsetHostTracker(IfIptoHost s) {
+        if (this.hostTracker == s) {
+            logger.debug("IfIptoHost removed!");
+            this.hostTracker = null;
+        }
+    }
     /**
      * Function called by the dependency manager when all the required
      * dependencies are satisfied
      *
      */
     void init() {
-        logger.info("Initialized by vtx");
+        logger.info("Initialized");
         // Disabling the SimpleForwarding and ARPHandler bundle to not conflict
         // with this one
         BundleContext bundleContext = FrameworkUtil.getBundle(this.getClass())
@@ -172,8 +185,12 @@ public class TutorialL2Forwarding implements IListenDataPacket, ITopologyManager
      */
     void start() {
         logger.info("Started");
-        logger.info("topologyManager.getNodesWithNodeConnectorHost(): "+topologyManager.getNodesWithNodeConnectorHost());
+        networkMonitor.setStatisticsManager(statisticsManager);
+        //TODO Add switches
         networkMonitor.addEdges(topologyManager.getEdges());
+        for(HostNodeConnector c: hostTracker.getAllHosts()) {
+            networkMonitor.addHost(c);
+        }
     }
 
     /**

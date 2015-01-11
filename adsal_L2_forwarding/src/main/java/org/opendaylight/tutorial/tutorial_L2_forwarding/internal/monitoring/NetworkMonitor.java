@@ -20,6 +20,7 @@ import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.Property;
 import org.opendaylight.controller.sal.core.UpdateType;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
+import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,14 +41,12 @@ public class NetworkMonitor {
     
 	private final int UPDATE_INTERVAL = 10000;
 	private MonitorThread mWorker;
-	
+	private IStatisticsManager mStatisticsManager = null;
+
 	private JFrame mFrame;
 	private Graph<Device, Link> mGraph;
 	private Layout<Device, Link> mVisualizer;
 	private VisualizationViewer<Device, Link> mVisualizationViewer;
-	
-//	private Topology mPreviousTopology;
-//	private Topology mCurrentTopology;
 	
 //	private AllPortStatistics mPreviousStatistics;
 	private long mPreviousTime;
@@ -66,25 +65,16 @@ public class NetworkMonitor {
 			super.run();
 			logger.info("Monitor thread started.");
 			while (!isInterrupted()) {
-/*				mPreviousTopology = mCurrentTopology;
-				mCurrentTopology = getTopology();
-				
-				mPreviousStatistics = mCurrentStatistics;
-				mPreviousTime = mCurrentTime;
-				mCurrentStatistics = getStatistics();
-				mCurrentTime = System.currentTimeMillis();
-*/						
-				// !!!! DEBUG
-//				System.out.println("INFO: add.");
-//				mGraph.addVertex(new Device("12", "MY"));
-				// !!!! DEBUG
+//				mPreviousStatistics = mCurrentStatistics;
+//				mPreviousTime = mCurrentTime;
+//				mCurrentStatistics = getStatistics();
+//				mCurrentTime = System.currentTimeMillis();
 
 				processStatistics();
 				
 				repaint();
 				
 /*				//Debug
-				printTopology(mCurrentTopology);
 				printStatistics(mCurrentStatistics);
 				printDevicesInfo();
 */				//Debug
@@ -232,11 +222,9 @@ public class NetworkMonitor {
         
         switch (type) {
         case ADDED:
-            addDevice(headNode);
-            addDevice(tailNode);
+            Device headDevice = addDevice(headNode);
+            Device tailDevice = addDevice(tailNode);
             
-            Device headDevice = mDevices.get(headNode.getNodeIDString());
-            Device tailDevice = mDevices.get(tailNode.getNodeIDString());
             if( null==mGraph.findEdge(headDevice, tailDevice) ) {
                 logger.info("Adding link: {} <---> {}",headDevice, tailDevice);
                 String headConnectorId = edge.getHeadNodeConnector().getNodeConnectorIDString();
@@ -270,27 +258,34 @@ public class NetworkMonitor {
         }
 	}
 	
-	/**
-	 * Adds host to graph
-	 * @param arg0
-	 */
+    /**
+     * Adds host to graph
+     * 
+     * @param arg0
+     */
     public void addHost(HostNodeConnector arg0) {
         String id = arg0.getNetworkAddressAsString();
         if (!mDevices.containsKey(id)) {
-            logger.info("New host id: {}",id);
+            logger.info("New host id: {}", id);
             Device device = new Device(id, "HOST");
             mDevices.put(id, device);
             mGraph.addVertex(device);
-            
+
             // Create link
-            Device tailDevice = mDevices.get(arg0.getnodeconnectorNode().getNodeIDString());
+            Device tailDevice = mDevices.get(arg0.getnodeconnectorNode()
+                    .getNodeIDString());
+            if (tailDevice == null) {
+                tailDevice = addDevice(arg0.getnodeconnectorNode());
+            }
+
+            // TODO refactoring - makeLink or something
             String headConnectorId = id;
-            String tailConnectorId = arg0.getnodeConnector().getNodeConnectorIDString();
+            String tailConnectorId = arg0.getnodeConnector()
+                    .getNodeConnectorIDString();
             Port headPort = device.createPort(headConnectorId);
             Port tailPort = tailDevice.createPort(tailConnectorId);
-            Link link = new Link(headConnectorId+":"+tailConnectorId,
-                    headPort,
-                    tailPort);
+            Link link = new Link(headConnectorId + ":" + tailConnectorId,
+                    headPort, tailPort);
             headPort.setTargetPort(tailPort);
             headPort.setLink(link);
             tailPort.setTargetPort(headPort);
@@ -318,18 +313,18 @@ public class NetworkMonitor {
 	/**
 	 * Adds device to graph
 	 * @param node
-	 * @return true if node added, false if node already exists
+	 * @return device
 	 */
-	private boolean addDevice(Node node) {
+	private Device addDevice(Node node) {
 		String id = node.getNodeIDString();
 		if (!mDevices.containsKey(id)) {
 			logger.info("New device id: {} type: {}",id, node.getType());
 			Device device = new Device(id, node.getType());
 			mDevices.put(id, device);
 			mGraph.addVertex(device);
-			return true;
+			return device;
 		}
-		return false;
+		return mDevices.get(id);
 	}
 	
 	   /**
@@ -345,6 +340,15 @@ public class NetworkMonitor {
             //TODO removing also edges related to vertex
         }
     }
+    
+    /**
+     * Sets Statistic Manager that is needed for statistics collection.
+     * @param statisticsManager
+     */
+    public void setStatisticsManager(IStatisticsManager statisticsManager) {
+        this.mStatisticsManager = statisticsManager;
+    }
+
 	
 	/**
 	 * Update statistics for ports based on received data.

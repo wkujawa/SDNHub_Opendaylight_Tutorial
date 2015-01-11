@@ -15,6 +15,7 @@ import java.util.Dictionary;
 import org.apache.felix.dm.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.sal.core.ComponentActivatorAbstractBase;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
@@ -109,6 +110,11 @@ public class Activator extends ComponentActivatorAbstractBase {
                     .setService(IStatisticsManager.class)
                     .setCallbacks("setStatisticsManager",
                             "unsetStatisticsManager").setRequired(true));
+
+            c.add(createContainerServiceDependency(containerName)
+                    .setService(IfIptoHost.class)
+                    .setCallbacks("setHostTracker",
+                            "unsetHostTracker").setRequired(true));
         }
     }
 }
