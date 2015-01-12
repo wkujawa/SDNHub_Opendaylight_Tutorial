@@ -3,7 +3,7 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 import java.text.DecimalFormat;
 
 public class Utils {
-	public final static long BASE = 1024;
+	public final static long BASE = 1024; // TODO is that base in OpenFlow, etc.
 	public final static long KB = BASE, MB = KB*BASE, GB = MB*BASE;
 	private final static long [] mSize = {
 		GB,
@@ -11,9 +11,9 @@ public class Utils {
 		KB,
 	};
 	private final static String [] mUnit = {
-		"GB",
-		"MB",
-		"KB",
+		"Gb",
+		"Mb",
+		"Kb",
 	};
 
 	private final static DecimalFormat df = new DecimalFormat("#.##");
@@ -24,6 +24,6 @@ public class Utils {
 				return df.format(bytes / mSize[i]) +" "+mUnit[i]+"/s";
 			}
 		}
-		return df.format(bytes) +" B";
+		return df.format(bytes) +" b/s";
 	}
 }

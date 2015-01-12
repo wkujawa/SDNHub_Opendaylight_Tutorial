@@ -22,6 +22,7 @@ import org.opendaylight.controller.sal.packet.IListenDataPacket;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
+import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
@@ -83,8 +84,9 @@ public class Activator extends ComponentActivatorAbstractBase {
             props.put("salListenerName", "tutorial_L2_forwarding");
             props.put("topoListenerName", "tutorial_L2_forwarding");
             c.setInterface(new String[] { IListenDataPacket.class.getName(),
-                    ITopologyManagerAware.class.getName(),
-                    IfNewHostNotify.class.getName() }, props);
+                            ITopologyManagerAware.class.getName(),
+                            IfNewHostNotify.class.getName(),
+                            IInventoryListener.class.getName() }, props);
 
             // register dependent modules
             c.add(createContainerServiceDependency(containerName).setService(

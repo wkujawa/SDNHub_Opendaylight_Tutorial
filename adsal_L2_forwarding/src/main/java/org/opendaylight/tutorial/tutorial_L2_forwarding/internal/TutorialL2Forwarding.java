@@ -17,11 +17,14 @@
 
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
@@ -32,21 +35,28 @@ import org.opendaylight.controller.sal.core.ConstructionException;
 import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
+import org.opendaylight.controller.sal.core.Property;
+import org.opendaylight.controller.sal.core.UpdateType;
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.match.Match;
 import org.opendaylight.controller.sal.match.MatchField;
 import org.opendaylight.controller.sal.match.MatchType;
+import org.opendaylight.controller.sal.packet.ARP;
 import org.opendaylight.controller.sal.packet.BitBufferHelper;
 import org.opendaylight.controller.sal.packet.Ethernet;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
+import org.opendaylight.controller.sal.packet.IPv4;
 import org.opendaylight.controller.sal.packet.Packet;
 import org.opendaylight.controller.sal.packet.PacketResult;
 import org.opendaylight.controller.sal.packet.RawPacket;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
+import org.opendaylight.controller.sal.utils.EtherTypes;
+import org.opendaylight.controller.sal.utils.NetUtils;
 import org.opendaylight.controller.sal.utils.Status;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
+import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
@@ -58,8 +68,10 @@ import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import edu.uci.ics.jung.algorithms.shortestpath.DijkstraShortestPath;
+
 public class TutorialL2Forwarding implements IListenDataPacket,
-        ITopologyManagerAware, IfNewHostNotify {
+        ITopologyManagerAware, IfNewHostNotify, IInventoryListener {
     private static final Logger logger = LoggerFactory
             .getLogger(TutorialL2Forwarding.class);
     private ISwitchManager switchManager = null;
@@ -237,10 +249,59 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         }
 
         logger.debug("Got packet in" + inPkt.toString());
+        
+        Packet packet = this.dataPacketService.decodeDataPacket(inPkt);
 
-        NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
-
+        if (!(packet instanceof Ethernet)) {
+            return PacketResult.IGNORED;
+        } else {
+            Object payload = packet.getPayload();
+            byte[] srcMAC = ((Ethernet) packet).getSourceMACAddress();
+            long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
+            byte[] dstMAC = ((Ethernet) packet).getDestinationMACAddress();
+            long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
+            
+            short ethType = ((Ethernet) packet).getEtherType();
+            if (ethType == EtherTypes.ARP.shortValue() || ethType == EtherTypes.IPv4.shortValue()) {
+                logger.info("Got packet {} -> {}", srcMAC, dstMAC);
+                logger.info("Ethtype: "+((Ethernet) packet).getEtherType());
+                
+                if (payload instanceof IPv4) {
+                    InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
+                    InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
+                    logger.info("Discovering.."); //TODO is it better to first query for host ?
+                    Future<HostNodeConnector> fsrc = hostTracker.discoverHost(srcIP);
+                    Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
+                    try {
+                        HostNodeConnector src = fsrc.get();
+                        HostNodeConnector dst = fdst.get();
+                        
+                        logger.info("{} at {}, {} at {}", srcIP, src
+                                .getnodeconnectorNode().getNodeIDString(),
+                                dstIP, dst.getnodeconnectorNode().getNodeIDString());
+                    } catch (InterruptedException | ExecutionException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                    
+                } else {
+                    if (payload instanceof ARP) {
+                        logger.info("ARP type");
+                        //TODO will we do someting with ARP
+                        return PacketResult.IGNORED;
+                    }
+                    logger.info("Not IPV4 or ARP");
+                }
+            } else {
+                //Not ARP nor IPv4
+            }
+            return PacketResult.IGNORED;
+        }
+/*        ///////////////////////////////////////////////////////////////////////////
         // Hub implementation
+        
+        NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
+        
         if (function.equals("hub")) {
             floodPacket(inPkt);
         } else {
@@ -263,7 +324,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 this.dataPacketService.transmitDataPacket(inPkt);
             }
         }
-        return PacketResult.CONSUME;
+        return PacketResult.CONSUME; */
     }
 
     private void learnSourceMAC(Packet formattedPak,
@@ -344,5 +405,35 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 .getNetworkAddressAsString(), arg0.getnodeconnectorNode()
                 .getNodeIDString());
         networkMonitor.removeHost(arg0);
+    }
+
+    /////////////////////
+    // IInventoryListener
+    /////////////////////
+    @Override
+    public void notifyNode(Node arg0, UpdateType arg1,
+            Map<String, Property> arg2) {
+        logger.info("notifyNode id: {} type {}", arg0.getNodeIDString(), arg1);
+        switch (arg1) {
+        case ADDED:
+            networkMonitor.addDevice(arg0);
+            break;
+        case CHANGED:
+            //TODO
+            logger.warn("notifyNode type CHANGED not yet implemented");
+            break;
+        case REMOVED:
+            networkMonitor.removeDevice(arg0);
+            break;
+        default:
+            break;
+
+        }
+    }
+
+    @Override
+    public void notifyNodeConnector(NodeConnector arg0, UpdateType arg1,
+            Map<String, Property> arg2) {
+        logger.info("notifyNodeConnector");
     }
 }

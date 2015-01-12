@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
+import edu.uci.ics.jung.algorithms.shortestpath.DijkstraShortestPath;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.UndirectedSparseMultigraph;
 import edu.uci.ics.jung.graph.util.EdgeType;
@@ -50,7 +51,10 @@ public class NetworkMonitor {
     private Graph<Device, Link> mGraph;
     private Layout<Device, Link> mVisualizer;
     private VisualizationViewer<Device, Link> mVisualizationViewer;
-
+    
+    DijkstraShortestPath<Device, Link> dijkstra = null; 
+    Transformer<Link, ? extends Number> mTransformer = new LinkTransformer();
+    
     private long mCurrentTime;
 
     /**
@@ -85,6 +89,7 @@ public class NetworkMonitor {
     public NetworkMonitor() {
         mDevices = new HashMap<String, Device>();
         mGraph = new UndirectedSparseMultigraph<Device, Link>();
+        dijkstra = new DijkstraShortestPath<Device, Link>(mGraph, mTransformer);
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
@@ -399,8 +404,8 @@ public class NetworkMonitor {
                     // So create one.
                     port = device.createPort(connectorId);
                 }
-
-                port.updateStatistics(mCurrentTime, nodeStat.getTransmitByteCount(), nodeStat.getReceiveByteCount());
+                // We get in bytes, but want in bites
+                port.updateStatistics(mCurrentTime, 8*nodeStat.getTransmitByteCount(), 8*nodeStat.getReceiveByteCount());
 
            /*     //TODO below should be not needed or should be temporary and when device discovered it should be switched with it
                 //Add unknown endpoints for ports // TODO later some of them might be detected as some kind of device.
@@ -424,6 +429,15 @@ public class NetworkMonitor {
         for (Device device : mDevices.values()) {
             device.updateLinksStatistics(mCurrentTime);
         }
+    }
+
+    public List<Link> getShortestPath(Node src, Node dst) {
+        Device srcDev = mDevices.get(src.getNodeIDString());
+        Device dstDev = mDevices.get(dst.getNodeIDString());
+
+        List<Link> path;
+        path = dijkstra.getPath(srcDev, dstDev);
+        return path;
     }
 
     private void printDevicesInfo() {
