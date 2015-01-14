@@ -2,25 +2,21 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 
 import java.text.DecimalFormat;
 
+import org.opendaylight.controller.sal.core.NodeConnector;
+
 public class Link {
-	private final String mId;
-	private final Port mParent;
-	private final Port mTarget;
+	private final NodeConnector mSourceConnector;
+	private final NodeConnector mDestinationConnector;
 	private long mUsage;
 	private long mUpdateTime;
 	private long mBandwidth;
 	
-	public Link(String id, Port parent, Port target) {
-		mId = id;
-		mParent = parent;
-		mTarget = target;
+	public Link(NodeConnector src, NodeConnector dst) {
+		mSourceConnector = src;
+		mDestinationConnector = dst;
 	    //TODO workaround hardcoded 100Mb/s link bw.
         // That cannot be gathered from parameters because in VETH it is hardcoded to 10Gb/s0
 		mBandwidth = Utils.MB*100;
-	}
-	
-	public String getId() {
-		return mId;
 	}
 
 	@Override
@@ -29,12 +25,12 @@ public class Link {
 	            + new DecimalFormat("#.#").format((double)mUsage/(double)mBandwidth*100) +"% ]";
 	}
 	
-	public Port getParent() {
-		return mParent;
+	public NodeConnector getSourceConnector() {
+		return mSourceConnector;
 	}
 
-	public Port getTarget() {
-		return mTarget;
+	public NodeConnector getDestinationConnector() {
+		return mDestinationConnector;
 	}
 
 	public long getUsage() {

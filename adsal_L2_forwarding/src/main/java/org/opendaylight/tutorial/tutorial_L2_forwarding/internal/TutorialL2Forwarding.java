@@ -60,6 +60,7 @@ import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
@@ -276,9 +277,17 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         HostNodeConnector src = fsrc.get();
                         HostNodeConnector dst = fdst.get();
                         
-                        logger.info("{} at {}, {} at {}", srcIP, src
-                                .getnodeconnectorNode().getNodeIDString(),
+                        logger.info("{} at {}, {} at {}",
+                                srcIP, src.getnodeconnectorNode().getNodeIDString(),
                                 dstIP, dst.getnodeconnectorNode().getNodeIDString());
+                        List<Link> path = networkMonitor.getShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode());
+                        int i = 0;
+                        for (Link link: path) {
+                            logger.info("Path "+i+" : "+link.getSourceConnector().getNode().getNodeIDString()+" - "
+                                        +link.getDestinationConnector().getNode().getNodeIDString()+" "+link.toString());
+                        }
+                        
+                        //TODO program path
                     } catch (InterruptedException | ExecutionException e) {
                         // TODO Auto-generated catch block
                         e.printStackTrace();

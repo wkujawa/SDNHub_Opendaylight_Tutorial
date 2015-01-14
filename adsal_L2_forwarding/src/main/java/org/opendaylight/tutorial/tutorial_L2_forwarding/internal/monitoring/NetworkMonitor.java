@@ -145,10 +145,12 @@ public class NetworkMonitor {
         // Nodes
         Transformer<Device, Paint> vertexPaint = new Transformer<Device, Paint>() {
             public Paint transform(Device device) {
-                if (device.getType().equals("HOST")) {
+                if (device.getType() == DeviceType.HOST) {
                     return Color.BLUE;
-                } else {
+                } else if (device.getType() == DeviceType.SWITCH){
                     return Color.RED;
+                } else {
+                    return Color.YELLOW; //UknownType
                 }
 
             }
@@ -252,8 +254,7 @@ public class NetworkMonitor {
                         .getNodeConnectorIDString();
                 Port headPort = headDevice.createPort(headConnectorId);
                 Port tailPort = tailDevice.createPort(tailConnectorId);
-                Link link = new Link(headConnectorId + ":" + tailConnectorId,
-                        headPort, tailPort);
+                Link link = new Link(edge.getHeadNodeConnector(), edge.getTailNodeConnector());
                 headPort.setTargetPort(tailPort);
                 headPort.setLink(link);
                 tailPort.setTargetPort(headPort);
@@ -289,7 +290,7 @@ public class NetworkMonitor {
         String id = arg0.getNetworkAddressAsString();
         if (!mDevices.containsKey(id)) {
             logger.info("New host id: {}", id);
-            Device device = new Device(id, "HOST");
+            Device device = new Device(id);
             mDevices.put(id, device);
             mGraph.addVertex(device);
 
@@ -306,8 +307,7 @@ public class NetworkMonitor {
                     .getNodeConnectorIDString();
             Port headPort = device.createPort(headConnectorId);
             Port tailPort = tailDevice.createPort(tailConnectorId);
-            Link link = new Link(headConnectorId + ":" + tailConnectorId,
-                    headPort, tailPort);
+            Link link = new Link(arg0.getnodeConnector(), arg0.getnodeConnector());
             headPort.setTargetPort(tailPort);
             headPort.setLink(link);
             tailPort.setTargetPort(headPort);
@@ -343,7 +343,7 @@ public class NetworkMonitor {
         String id = node.getNodeIDString();
         if (!mDevices.containsKey(id)) {
             logger.info("New device id: {} type: {}", id, node.getType());
-            Device device = new Device(id, node.getType());
+            Device device = new Device(node);
             mDevices.put(id, device);
             mGraph.addVertex(device);
             return device;

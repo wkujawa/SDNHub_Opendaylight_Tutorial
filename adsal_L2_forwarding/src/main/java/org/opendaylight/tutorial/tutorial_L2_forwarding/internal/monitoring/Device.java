@@ -3,23 +3,34 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.opendaylight.controller.sal.core.Node;
+
 public class Device {
 	public final static String UNKNOWN_DEV_TYPE = "Unknow";
+	private Node mNode;
 	private String mId;
-	private String mType;
+	private DeviceType mType;
 	private Map<String,Port> mPorts;
 	
-	public Device(String id, String type) {
-		mId = id;
-		mType = type;
-		mPorts = new HashMap<String,Port>();
+	public Device(Node node) {
+	    mNode = node;
+	    mId = node.getNodeIDString();
+	    mType = DeviceType.SWITCH;
+	    mPorts = new HashMap<String,Port>();
+	}
+	
+	public Device(String hostid) {
+	    mNode = null;
+	    mId = hostid;
+	    mType = DeviceType.HOST;
+	    mPorts = new HashMap<String,Port>();
 	}
 	
 	public String getId() {
 		return mId;
 	}
 
-	public String getType() {
+	public DeviceType getType() {
 		return mType;
 	}
 	
@@ -32,7 +43,11 @@ public class Device {
 		return mPorts.get(portId);
 	}
 
-	/**
+	public Node getNode() {
+        return mNode;
+    }
+
+    /**
 	 * Creates port if does not exist.
 	 * @param portId - port ID
 	 * @return port - handle
