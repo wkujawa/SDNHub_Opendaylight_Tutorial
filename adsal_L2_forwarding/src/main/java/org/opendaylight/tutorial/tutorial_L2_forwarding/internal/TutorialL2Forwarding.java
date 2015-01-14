@@ -62,6 +62,7 @@ import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Utils;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -262,9 +263,15 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             byte[] dstMAC = ((Ethernet) packet).getDestinationMACAddress();
             long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
             
+            if (NetUtils.isBroadcastMACAddr(srcMAC) || NetUtils.isBroadcastMACAddr(dstMAC)) {
+                //logger.info("Broadcast {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
+                //floodPacket(inPkt); //FIXME cannot do that with loops in network
+                return PacketResult.IGNORED;
+            }
+            
             short ethType = ((Ethernet) packet).getEtherType();
-            if (ethType == EtherTypes.ARP.shortValue() || ethType == EtherTypes.IPv4.shortValue()) {
-                logger.info("Got packet {} -> {}", srcMAC, dstMAC);
+            if (ethType == EtherTypes.IPv4.shortValue()) {
+                logger.info("Got packet {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
                 logger.info("Ethtype: "+((Ethernet) packet).getEtherType());
                 
                 if (payload instanceof IPv4) {
@@ -273,99 +280,97 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     logger.info("Discovering.."); //TODO is it better to first query for host ?
                     Future<HostNodeConnector> fsrc = hostTracker.discoverHost(srcIP);
                     Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
+                    
                     try {
                         HostNodeConnector src = fsrc.get();
                         HostNodeConnector dst = fdst.get();
+                        
+                        // Flow leading to host
+                        // TODO do not duplicate
+                        flowToHost(srcMAC, src.getnodeConnector());
+                        flowToHost(dstMAC, dst.getnodeConnector());
                         
                         logger.info("{} at {}, {} at {}",
                                 srcIP, src.getnodeconnectorNode().getNodeIDString(),
                                 dstIP, dst.getnodeconnectorNode().getNodeIDString());
                         List<Link> path = networkMonitor.getShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode());
                         int i = 0;
+                        
+                        // Graph is undirected so we need to figure out which connector is for source and which for destination
+                        Node lastNode = src.getnodeconnectorNode();
                         for (Link link: path) {
                             logger.info("Path "+i+" : "+link.getSourceConnector().getNode().getNodeIDString()+" - "
                                         +link.getDestinationConnector().getNode().getNodeIDString()+" "+link.toString());
+                            
+                            if (lastNode.equals(link.getSourceConnector().getNode())) {
+                                flowS2S((Ethernet)packet, link.getSourceConnector(), link.getDestinationConnector());
+                                lastNode = link.getDestinationConnector().getNode();
+                            } else {
+                                flowS2S((Ethernet)packet, link.getDestinationConnector(), link.getSourceConnector());
+                                lastNode = link.getSourceConnector().getNode();
+                            }
                         }
                         
-                        //TODO program path
+                        //TODO send PacketOut
+                        
+                        return PacketResult.CONSUME;
                     } catch (InterruptedException | ExecutionException e) {
                         // TODO Auto-generated catch block
                         e.printStackTrace();
                     }
-                    
                 } else {
-                    if (payload instanceof ARP) {
-                        logger.info("ARP type");
-                        //TODO will we do someting with ARP
-                        return PacketResult.IGNORED;
-                    }
-                    logger.info("Not IPV4 or ARP");
+                    logger.info("Not IPV4");
                 }
-            } else {
-                //Not ARP nor IPv4
-            }
+            } 
+            
             return PacketResult.IGNORED;
         }
-/*        ///////////////////////////////////////////////////////////////////////////
-        // Hub implementation
-        
-        NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
-        
-        if (function.equals("hub")) {
-            floodPacket(inPkt);
-        } else {
-            Packet formattedPak = this.dataPacketService
-                    .decodeDataPacket(inPkt);
-            if (!(formattedPak instanceof Ethernet)) {
-                return PacketResult.IGNORED;
-            }
-
-            learnSourceMAC(formattedPak, incoming_connector);
-            NodeConnector outgoing_connector = knowDestinationMAC(formattedPak);
-            if (outgoing_connector == null) {
-                floodPacket(inPkt);
-            } else {
-                if (!programFlow(formattedPak, incoming_connector,
-                        outgoing_connector)) {
-                    return PacketResult.IGNORED;
-                }
-                inPkt.setOutgoingNodeConnector(outgoing_connector);
-                this.dataPacketService.transmitDataPacket(inPkt);
-            }
-        }
-        return PacketResult.CONSUME; */
     }
 
-    private void learnSourceMAC(Packet formattedPak,
-            NodeConnector incoming_connector) {
-        byte[] srcMAC = ((Ethernet) formattedPak).getSourceMACAddress();
-        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
-        this.mac_to_port.put(srcMAC_val, incoming_connector);
-    }
-
-    private NodeConnector knowDestinationMAC(Packet formattedPak) {
-        byte[] dstMAC = ((Ethernet) formattedPak).getDestinationMACAddress();
-        long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
-        return this.mac_to_port.get(dstMAC_val);
-    }
-
-    private boolean programFlow(Packet formattedPak,
-            NodeConnector incoming_connector, NodeConnector outgoing_connector) {
-        byte[] dstMAC = ((Ethernet) formattedPak).getDestinationMACAddress();
-
+    private boolean flowToHost(byte [] mac, NodeConnector connector) {
         Match match = new Match();
-        match.setField(new MatchField(MatchType.IN_PORT, incoming_connector));
+        match.setField(new MatchField(MatchType.DL_DST, mac.clone()));
+        
+        List<Action> actions = new ArrayList<Action>();
+        actions.add(new Output(connector));
+
+        Flow f = new Flow(match, actions);
+        
+        logger.info("Programming flow to {} : {}", mac, f);
+        
+        Node node = connector.getNode();
+        Status status = programmer.addFlow(node, f);
+
+        if (!status.isSuccess()) {
+            logger.warn(
+                    "SDN Plugin failed to program the flow: {}. The failure is: {}",
+                    f, status.getDescription());
+            return false;
+        } else {
+            return true;
+        }
+    }
+    
+    private boolean flowS2S(Ethernet ethpacket,
+            NodeConnector incoming_connector, NodeConnector outgoing_connector) {
+        byte[] srcMAC = ethpacket.getSourceMACAddress();
+        byte[] dstMAC = ethpacket.getDestinationMACAddress();
+        
+        return (programFlow(incoming_connector, srcMAC, dstMAC) &&
+                programFlow(outgoing_connector, dstMAC, srcMAC));
+    }
+    
+    private boolean programFlow(NodeConnector connector, byte[] srcMAC, byte[] dstMAC) {
+        Match match = new Match();
+        match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
 
         List<Action> actions = new ArrayList<Action>();
-        actions.add(new Output(outgoing_connector));
+        actions.add(new Output(connector));
 
         Flow f = new Flow(match, actions);
-        f.setIdleTimeout((short) 5);
 
-        // Modify the flow on the network node
-        Node incoming_node = incoming_connector.getNode();
-        Status status = programmer.addFlow(incoming_node, f);
+        Status status = programmer.addFlow(connector.getNode(), f);
 
         if (!status.isSuccess()) {
             logger.warn(

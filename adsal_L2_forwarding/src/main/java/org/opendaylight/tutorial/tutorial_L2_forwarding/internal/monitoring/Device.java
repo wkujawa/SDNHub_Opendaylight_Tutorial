@@ -6,7 +6,6 @@ import java.util.Map;
 import org.opendaylight.controller.sal.core.Node;
 
 public class Device {
-	public final static String UNKNOWN_DEV_TYPE = "Unknow";
 	private Node mNode;
 	private String mId;
 	private DeviceType mType;

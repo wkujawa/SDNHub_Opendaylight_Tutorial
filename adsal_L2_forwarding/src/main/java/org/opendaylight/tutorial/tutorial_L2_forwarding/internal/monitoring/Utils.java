@@ -26,4 +26,14 @@ public class Utils {
 		}
 		return df.format(bytes) +" b/s";
 	}
+	
+	public static String mac2str(byte[] mac) {
+	    StringBuilder sb = new StringBuilder(18);
+	    for (byte b : mac) {
+	        if (sb.length() > 0)
+	            sb.append(':');
+	        sb.append(String.format("%02x", b));
+	    }
+	    return sb.toString();
+	}
 }
