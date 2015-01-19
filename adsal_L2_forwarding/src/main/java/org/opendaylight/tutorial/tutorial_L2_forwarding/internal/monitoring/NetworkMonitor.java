@@ -42,7 +42,7 @@ public class NetworkMonitor {
     private static final Logger logger = LoggerFactory
             .getLogger(NetworkMonitor.class);
 
-    private final int UPDATE_INTERVAL = 10000;
+    private final int UPDATE_INTERVAL = 1000;
     private MonitorThread mWorker;
     private IStatisticsManager mStatisticsManager = null;
     private ISwitchManager mSwitchManager = null;
