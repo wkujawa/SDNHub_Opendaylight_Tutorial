@@ -2,6 +2,7 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 
 import java.text.DecimalFormat;
 
+import org.apache.commons.collections15.Transformer;
 import org.opendaylight.controller.sal.core.NodeConnector;
 
 public class Link {
@@ -10,6 +11,7 @@ public class Link {
 	private long mUsage;
 	private long mUpdateTime;
 	private long mBandwidth;
+	static Transformer<Link, ? extends Number> mTransformer = new LinkTransformer();
 	
 	public Link(NodeConnector src, NodeConnector dst) {
 		mSourceConnector = src;
@@ -22,7 +24,7 @@ public class Link {
 	@Override
 	public String toString() {
 	    return "["+Utils.printWithUnit(mUsage)+"] ["
-	            + new DecimalFormat("#.#").format((double)mUsage/(double)mBandwidth*100) +"% ]";
+	            + new DecimalFormat("#.#").format((double)mUsage/(double)mBandwidth*100) +"% ] W<"+mTransformer.transform(this)+">";
 	}
 	
 	public NodeConnector getSourceConnector() {

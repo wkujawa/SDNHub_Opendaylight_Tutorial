@@ -69,10 +69,17 @@ public class Device {
 					// First device makes update
 					link.updateStatistic(time, port.getDataRate());
 				} else if (time == link.getUpdateTime()) {
-					// Second side of link makes update
-					// Statistic of link as average of both
-					long usage = (link.getUsage() + port.getDataRate()) / 2;
-					link.updateStatistic(time, usage);
+				    if (!link.getSourceConnector().equals(link.getDestinationConnector())) { 
+				        //Do that only for links between switches. Host got stats only from one side.
+    					// Second side of link makes update
+    					// Statistic of link as average of both
+    					long usage = (link.getUsage() + port.getDataRate()) / 2;
+    					link.updateStatistic(time, usage);
+				    } else {
+				        // Host link case, only one port gets stats
+				        long usage = link.getUsage() + port.getDataRate();
+				        link.updateStatistic(time, usage);
+				    }
 				}
 			}
 		}

@@ -10,8 +10,8 @@ public class LinkTransformer implements Transformer<Link, Long> {
 
     @Override
     public Long transform(Link arg0) {
-        // TODO Auto-generated method stub
-        return 1 + (arg0.getUsage()/ arg0.getBandwidth()*100) * (arg0.getUsage()/ arg0.getBandwidth()*100);
+        long x = Math.round((double) arg0.getUsage()/ arg0.getBandwidth() *100);
+        return 1 + x * x;
     }
 
 }
