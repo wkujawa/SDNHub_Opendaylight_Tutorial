@@ -19,6 +19,7 @@ import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.Property;
 import org.opendaylight.controller.sal.core.UpdateType;
+import org.opendaylight.controller.sal.reader.FlowOnNode;
 import org.opendaylight.controller.sal.reader.NodeConnectorStatistics;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
@@ -124,11 +125,7 @@ public class NetworkMonitor {
                 mVisualizer);
         // BasicVisualizationServer<Device, Link> vv = new
         // BasicVisualizationServer<Device, Link>(layout);
-        mVisualizationViewer.setPreferredSize(new Dimension(650, 650)); // Sets
-                                                                        // the
-                                                                        // viewing
-                                                                        // area
-                                                                        // size
+        mVisualizationViewer.setPreferredSize(new Dimension(650, 650));
 
         DefaultModalGraphMouse<Device, Link> graphMouse = new DefaultModalGraphMouse<Device, Link>();
         graphMouse.setMode(Mode.PICKING);
@@ -137,7 +134,18 @@ public class NetworkMonitor {
         mVisualizationViewer.getRenderer().getVertexLabelRenderer()
                 .setPosition(Renderer.VertexLabel.Position.CNTR);
         mVisualizationViewer.getRenderContext().setVertexLabelTransformer(
-                new ToStringLabeller<Device>());
+                new Transformer<Device, String>() {
+                    @Override
+                    public String transform(Device device) {
+                        StringBuilder builder = new StringBuilder();
+                        builder.append("<html><center>"+device.getId());
+                        for (FlowStatistics flowStatistics : device.getFlowStatistics()) {
+                            builder.append("<p>"+flowStatistics.getFlow().getMatch()+" usage: "+Utils.printWithUnit(flowStatistics.getUsage()));
+                        }
+                        return builder.toString();
+                    }
+                }
+                );
         mVisualizationViewer.getRenderContext().setEdgeLabelTransformer(
                 new ToStringLabeller<Link>());
 
@@ -388,6 +396,7 @@ public class NetworkMonitor {
      * Update statistics for ports based on received data.
      */
     private void processStatistics() {
+        logger.info("--- Processsing Statistics ---");
         for (Node node : mSwitchManager.getNodes()) {
             List<NodeConnectorStatistics> stats = mStatisticsManager
                     .getNodeConnectorStatistics(node);
@@ -405,23 +414,17 @@ public class NetworkMonitor {
                     port = device.createPort(connectorId);
                 }
                 // We get in bytes, but want in bites
+                //TODO move byte/bites conversion and add proper comments
                 port.updateStatistics(mCurrentTime, 8*nodeStat.getTransmitByteCount(), 8*nodeStat.getReceiveByteCount());
-
-           /*     //TODO below should be not needed or should be temporary and when device discovered it should be switched with it
-                //Add unknown endpoints for ports // TODO later some of them might be detected as some kind of device.
-                if (port.getTargetPort() == null && !connectorId.equals("0")) { // Don't know what is port "0" - ignoring it
-                    Device fakeDev = new Device(connectorId, Device.UNKNOWN_DEV_TYPE);
-                    Port fakePort = fakeDev.createPort(Port.FAKE_PORT);
-                    Link link = new Link(connectorId+":"+fakePort.getPortId(),
-                            port,
-                            fakePort);
-                    port.setTargetPort(fakePort);
-                    port.setLink(link);
-                    fakePort.setTargetPort(port);
-                    fakePort.setLink(link);
-                    mGraph.addVertex(fakeDev);
-                    mGraph.addEdge(link, device, fakeDev, EdgeType.UNDIRECTED);
-                }*/
+            }
+            
+            List<FlowOnNode> flowsOnNode = mStatisticsManager.getFlows(node);
+            for (FlowOnNode flowOnNode : flowsOnNode) {
+                logger.info("Flow: {} bytes: {}", flowOnNode.getFlow().toString(), flowOnNode.getByteCount());
+                FlowStatistics flowStatistics = device.getFlowStatistics(flowOnNode);
+                flowStatistics.updateStatistics(mCurrentTime, flowOnNode.getByteCount());
+                logger.info("Flow usage: {}", flowStatistics.getUsage());
+                //TODO remove old flows - might hook some notifications about flows
             }
         }
 
@@ -429,6 +432,7 @@ public class NetworkMonitor {
         for (Device device : mDevices.values()) {
             device.updateLinksStatistics(mCurrentTime);
         }
+        logger.info("------------------------------");
     }
 
     public List<Link> getShortestPath(Node src, Node dst) {
@@ -439,13 +443,8 @@ public class NetworkMonitor {
         path = dijkstra.getPath(srcDev, dstDev);
         return path;
     }
-
-    private void printDevicesInfo() {
-        System.out.println("*** Devices Info ***");
-        for (Device device : mDevices.values()) {
-            System.out.println(device.debugInfo());
-        }
-        System.out.println("********************");
+    
+    public long getMaxThroughput() {
+        return 0;
     }
-
 }

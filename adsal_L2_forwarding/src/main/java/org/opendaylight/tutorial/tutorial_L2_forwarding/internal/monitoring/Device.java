@@ -1,21 +1,26 @@
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.opendaylight.controller.sal.core.Node;
+import org.opendaylight.controller.sal.flowprogrammer.Flow;
+import org.opendaylight.controller.sal.reader.FlowOnNode;
 
 public class Device {
 	private Node mNode;
 	private String mId;
 	private DeviceType mType;
 	private Map<String,Port> mPorts;
+	private Map<Flow, FlowStatistics> mFlows;
 	
 	public Device(Node node) {
 	    mNode = node;
 	    mId = node.getNodeIDString();
 	    mType = DeviceType.SWITCH;
 	    mPorts = new HashMap<String,Port>();
+	    mFlows = new HashMap<Flow, FlowStatistics>();
 	}
 	
 	public Device(String hostid) {
@@ -23,6 +28,7 @@ public class Device {
 	    mId = hostid;
 	    mType = DeviceType.HOST;
 	    mPorts = new HashMap<String,Port>();
+	    mFlows = new HashMap<Flow, FlowStatistics>();
 	}
 	
 	public String getId() {
@@ -45,6 +51,25 @@ public class Device {
 	public Node getNode() {
         return mNode;
     }
+	
+	/**
+	 * Returns flow statistics for given flow or "null" if not found.
+	 * @param flow
+	 * @return flow statistics or null
+	 */
+	public FlowStatistics getFlowStatistics(FlowOnNode flowOnNode) {
+	    FlowStatistics flowStatistics = mFlows.get(flowOnNode.getFlow());
+	    if (flowStatistics == null) {
+	        flowStatistics = new FlowStatistics(flowOnNode.getFlow(), flowOnNode.getByteCount());
+	        mFlows.put(flowOnNode.getFlow(), flowStatistics);
+	    }
+	    return flowStatistics;	        
+	}
+	
+   public Collection<FlowStatistics> getFlowStatistics() {
+       return mFlows.values();
+    }
+
 
     /**
 	 * Creates port if does not exist.
@@ -75,10 +100,6 @@ public class Device {
     					// Statistic of link as average of both
     					long usage = (link.getUsage() + port.getDataRate()) / 2;
     					link.updateStatistic(time, usage);
-				    } else {
-				        // Host link case, only one port gets stats
-				        long usage = link.getUsage() + port.getDataRate();
-				        link.updateStatistic(time, usage);
 				    }
 				}
 			}

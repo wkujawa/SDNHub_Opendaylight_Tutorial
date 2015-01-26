@@ -40,14 +40,14 @@ public class Port {
 		if (getTimeDiffSeconds()==0) {
 			return 0;
 		}
-		return (mLastSent-mPreviousSent)/ getTimeDiffSeconds();
+		return (long) ((mLastSent-mPreviousSent)/ getTimeDiffSeconds());
 	}
 	
 	public long getReceivingRate() {
 		if (getTimeDiffSeconds()==0) {
 			return 0;
 		}
-		return (mLastReceived-mPreviousReceived)/ getTimeDiffSeconds();
+		return (long) ((mLastReceived-mPreviousReceived)/ getTimeDiffSeconds());
 	}
 	
 	public long getDataRate() {
@@ -83,8 +83,8 @@ public class Port {
 		mLastReceived = received;
 	}
 
-	private long getTimeDiffSeconds() {
-		return (mLastTimestamp-mPreviousTimestamp) / 1000;
+	private double getTimeDiffSeconds() {
+		return (mLastTimestamp-mPreviousTimestamp) / 1000.0;
 	}
 
 }
