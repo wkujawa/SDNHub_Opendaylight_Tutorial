@@ -50,6 +50,10 @@ public class Link {
     public void setBandwidth(long bandwidth) {
         this.mBandwidth = bandwidth;
     }
+    
+    public boolean isHostLink() {
+        return getSourceConnector().equals(getDestinationConnector());
+    }
 
     protected void updateStatistic(long timestamp, long usage) {
 		mUpdateTime = timestamp;

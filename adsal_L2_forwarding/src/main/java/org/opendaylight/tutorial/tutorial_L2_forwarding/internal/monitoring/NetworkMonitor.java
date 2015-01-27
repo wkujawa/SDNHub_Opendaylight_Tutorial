@@ -3,6 +3,9 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
 import java.awt.Paint;
 import java.awt.Stroke;
 import java.util.HashMap;
@@ -189,6 +192,36 @@ public class NetworkMonitor {
         // mVisualizationViewer.getRenderContext().setEdgeFillPaintTransformer(edgePaint);
         mVisualizationViewer.getRenderContext().setEdgeDrawPaintTransformer(
                 edgePaint);
+        
+        mVisualizationViewer.addPostRenderPaintable(new VisualizationViewer.Paintable(){
+            int x;
+            int y;
+            Font font;
+            FontMetrics metrics;
+            int swidth;
+            int sheight;
+            
+            public void paint(Graphics g) {
+                Dimension d = mVisualizationViewer.getSize();
+                String str = "MaxThroughput: "+Utils.printWithUnit(getMaxThroughput());
+                if(font == null) {
+                    font = new Font(g.getFont().getName(), Font.BOLD, 14);
+                    metrics = g.getFontMetrics(font);
+                    swidth = metrics.stringWidth(str);
+                    sheight = metrics.getMaxAscent()+metrics.getMaxDescent();
+                    x = (d.width-swidth)/2;
+                    y = (int)(d.height-sheight*1.5);
+                }
+                g.setFont(font);
+                Color oldColor = g.getColor();
+                g.setColor(Color.black);
+                g.drawString(str, x, y);
+                g.setColor(oldColor);
+            }
+            public boolean useTransform() {
+                return false;
+            }
+        });
 
         mFrame = new JFrame("NetworkMonitor");
         mFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -445,6 +478,12 @@ public class NetworkMonitor {
     }
     
     public long getMaxThroughput() {
-        return 0;
+        long sum = 0;
+        for (Link link : mGraph.getEdges()) {
+            if (link.isHostLink()) {
+                sum += link.getUsage();
+            }
+        }
+        return sum;
     }
 }

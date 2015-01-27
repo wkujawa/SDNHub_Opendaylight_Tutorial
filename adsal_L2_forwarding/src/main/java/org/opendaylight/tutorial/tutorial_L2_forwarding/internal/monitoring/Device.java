@@ -94,7 +94,7 @@ public class Device {
 					// First device makes update
 					link.updateStatistic(time, port.getDataRate());
 				} else if (time == link.getUpdateTime()) {
-				    if (!link.getSourceConnector().equals(link.getDestinationConnector())) { 
+				    if (!link.isHostLink()) { 
 				        //Do that only for links between switches. Host got stats only from one side.
     					// Second side of link makes update
     					// Statistic of link as average of both

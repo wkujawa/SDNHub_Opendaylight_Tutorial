@@ -4,13 +4,15 @@ import java.text.DecimalFormat;
 
 public class Utils {
 	public final static long BASE = 1024; // TODO is that base in OpenFlow, etc.
-	public final static long KB = BASE, MB = KB*BASE, GB = MB*BASE;
+	public final static long KB = BASE, MB = KB*BASE, GB = MB*BASE, TB=GB*BASE;
 	private final static long [] mSize = {
+	    TB,
 		GB,
 		MB,
 		KB,
 	};
 	private final static String [] mUnit = {
+	    "Tb",
 		"Gb",
 		"Mb",
 		"Kb",
