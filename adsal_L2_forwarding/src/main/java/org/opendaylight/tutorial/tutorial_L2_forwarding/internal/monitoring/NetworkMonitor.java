@@ -439,7 +439,6 @@ public class NetworkMonitor {
      * Update statistics for ports based on received data.
      */
     private void processStatistics() {
-        logger.info("--- Processsing Statistics ---");
         for (Node node : mSwitchManager.getNodes()) {
             List<NodeConnectorStatistics> stats = mStatisticsManager
                     .getNodeConnectorStatistics(node);
@@ -475,7 +474,6 @@ public class NetworkMonitor {
         for (Device device : mDevices.values()) {
             device.updateLinksStatistics(mCurrentTime);
         }
-        logger.info("------------------------------");
     }
 
     public List<Link> getShortestPath(Node src, Node dst) {
