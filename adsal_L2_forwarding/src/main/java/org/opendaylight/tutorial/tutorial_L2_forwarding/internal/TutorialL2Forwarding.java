@@ -158,21 +158,6 @@ public class TutorialL2Forwarding implements IListenDataPacket,
      */
     void init() {
         logger.info("Initialized");
-        // Disabling the SimpleForwarding and ARPHandler bundle to not conflict
-        // with this one
-        BundleContext bundleContext = FrameworkUtil.getBundle(this.getClass())
-                .getBundleContext();
-        for (Bundle bundle : bundleContext.getBundles()) {
-            if (bundle.getSymbolicName().contains("simpleforwarding")) {
-                try {
-                    bundle.uninstall();
-                } catch (BundleException e) {
-                    logger.error(
-                            "Exception in Bundle uninstall "
-                                    + bundle.getSymbolicName(), e);
-                }
-            }
-        }
         logger.info("Starting Network Monitor..");
         networkMonitor = new NetworkMonitor();
     }
@@ -243,85 +228,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     ////////////////////
     @Override
     public PacketResult receiveDataPacket(RawPacket inPkt) {
-        if (inPkt == null) {
-            return PacketResult.IGNORED;
-        }
-
-        logger.debug("Got packet in" + inPkt.toString());
-        
-        Packet packet = this.dataPacketService.decodeDataPacket(inPkt);
-
-        if (!(packet instanceof Ethernet)) {
-            return PacketResult.IGNORED;
-        } else {
-            Object payload = packet.getPayload();
-            byte[] srcMAC = ((Ethernet) packet).getSourceMACAddress();
-            long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
-            byte[] dstMAC = ((Ethernet) packet).getDestinationMACAddress();
-            long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
-            
-            if (NetUtils.isBroadcastMACAddr(srcMAC) || NetUtils.isBroadcastMACAddr(dstMAC)) {
-                //logger.info("Broadcast {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
-                //floodPacket(inPkt); //FIXME cannot do that with loops in network
-                return PacketResult.IGNORED;
-            }
-            
-            short ethType = ((Ethernet) packet).getEtherType();
-            if (ethType == EtherTypes.IPv4.shortValue()) {
-                logger.info("Got packet {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
-                logger.info("Ethtype: "+((Ethernet) packet).getEtherType());
-                
-                if (payload instanceof IPv4) {
-                    InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
-                    InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
-                    logger.info("Discovering.."); //TODO is it better to first query for host ?
-                    Future<HostNodeConnector> fsrc = hostTracker.discoverHost(srcIP);
-                    Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
-                    
-                    try {
-                        HostNodeConnector src = fsrc.get();
-                        HostNodeConnector dst = fdst.get();
-                        
-                        // Flow leading to host
-                        // TODO do not duplicate
-                        flowToHost(srcMAC, src.getnodeConnector());
-                        flowToHost(dstMAC, dst.getnodeConnector());
-                        
-                        logger.info("{} at {}, {} at {}",
-                                srcIP, src.getnodeconnectorNode().getNodeIDString(),
-                                dstIP, dst.getnodeconnectorNode().getNodeIDString());
-                        List<Link> path = networkMonitor.getShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode());
-                        int i = 0;
-                        
-                        // Graph is undirected so we need to figure out which connector is for source and which for destination
-                        Node lastNode = src.getnodeconnectorNode();
-                        for (Link link: path) {
-                            logger.info("Path "+i+" : "+link.getSourceConnector().getNode().getNodeIDString()+" - "
-                                        +link.getDestinationConnector().getNode().getNodeIDString()+" "+link.toString());
-                            
-                            if (lastNode.equals(link.getSourceConnector().getNode())) {
-                                flowS2S((Ethernet)packet, link.getSourceConnector(), link.getDestinationConnector());
-                                lastNode = link.getDestinationConnector().getNode();
-                            } else {
-                                flowS2S((Ethernet)packet, link.getDestinationConnector(), link.getSourceConnector());
-                                lastNode = link.getSourceConnector().getNode();
-                            }
-                        }
-                        
-                        //TODO send PacketOut
-                        
-                        return PacketResult.CONSUME;
-                    } catch (InterruptedException | ExecutionException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }
-                } else {
-                    logger.info("Not IPV4");
-                }
-            } 
-            
-            return PacketResult.IGNORED;
-        }
+        return PacketResult.KEEP_PROCESSING;
     }
 
     private boolean flowToHost(byte [] mac, NodeConnector connector) {

@@ -143,9 +143,9 @@ public class NetworkMonitor {
                     public String transform(Device device) {
                         StringBuilder builder = new StringBuilder();
                         builder.append("<html><center>"+device.getId());
-                        for (FlowStatistics flowStatistics : device.getFlowStatistics()) {
-                            builder.append("<p>"+flowStatistics.getFlow().getMatch()+" usage: "+Utils.printWithUnit(flowStatistics.getUsage()));
-                        }
+//                        for (FlowStatistics flowStatistics : device.getFlowStatistics()) {
+//                            builder.append("<p>"+flowStatistics.getFlow().getMatch()+" usage: "+Utils.printWithUnit(flowStatistics.getUsage()));
+//                        }
                         return builder.toString();
                     }
                 });
