@@ -8,6 +8,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Paint;
 import java.awt.Stroke;
+import java.text.DecimalFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -147,10 +148,18 @@ public class NetworkMonitor {
                         }
                         return builder.toString();
                     }
-                }
-                );
+                });
         mVisualizationViewer.getRenderContext().setEdgeLabelTransformer(
-                new ToStringLabeller<Link>());
+                new Transformer<Link, String>() {
+                    @Override
+                    public String transform(Link link) {
+                        StringBuilder builder = new StringBuilder();
+                        builder.append("<html><center>"+Utils.printWithUnit(link.getUsage()));
+                        builder.append("<p>["+new DecimalFormat("#.#").format((double)link.getUsage()/(double)link.getBandwidth()*100) +"% ]");
+                        builder.append("<p>w:"+mTransformer.transform(link));
+                        return builder.toString();
+                    }
+                });
 
         // Coloring
         // Nodes
@@ -180,10 +189,10 @@ public class NetworkMonitor {
 
         Transformer<Link, Paint> edgePaint = new Transformer<Link, Paint>() {
             public Paint transform(Link link) {
-                if (link.getUsage() >= 50 * Utils.MB) {
+                if (link.getUsage() >= 0.75 * link.getBandwidth()) {
                     return Color.RED;
                 }
-                if (link.getUsage() >= Utils.MB) {
+                if (link.getUsage() >= 0.25 * link.getBandwidth()) {
                     return Color.YELLOW;
                 }
                 return Color.GREEN;
@@ -207,11 +216,12 @@ public class NetworkMonitor {
                 if(font == null) {
                     font = new Font(g.getFont().getName(), Font.BOLD, 14);
                     metrics = g.getFontMetrics(font);
-                    swidth = metrics.stringWidth(str);
-                    sheight = metrics.getMaxAscent()+metrics.getMaxDescent();
-                    x = (d.width-swidth)/2;
-                    y = (int)(d.height-sheight*1.5);
                 }
+                swidth = metrics.stringWidth(str);
+                sheight = metrics.getMaxAscent()+metrics.getMaxDescent();
+                x = (d.width-swidth)/2;
+                y = (int)(d.height-sheight*1.5);
+
                 g.setFont(font);
                 Color oldColor = g.getColor();
                 g.setColor(Color.black);
