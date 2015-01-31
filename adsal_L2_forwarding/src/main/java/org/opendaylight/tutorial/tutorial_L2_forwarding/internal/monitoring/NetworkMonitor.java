@@ -480,6 +480,7 @@ public class NetworkMonitor {
         Device dstDev = mDevices.get(dst.getNodeIDString());
 
         List<Link> path;
+        dijkstra.reset();
         path = dijkstra.getPath(srcDev, dstDev);
         return path;
     }
