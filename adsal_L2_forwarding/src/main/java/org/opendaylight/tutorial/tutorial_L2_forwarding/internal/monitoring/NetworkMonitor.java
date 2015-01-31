@@ -290,18 +290,20 @@ public class NetworkMonitor {
     private void edgeUpdate(Edge edge, UpdateType type, Set<Property> props) {
         Node headNode = edge.getHeadNodeConnector().getNode();
         Node tailNode = edge.getTailNodeConnector().getNode();
-
+        Device headDevice = null;
+        Device tailDevice = null;
+        String headConnectorId = edge.getHeadNodeConnector()
+                .getNodeConnectorIDString();
+        String tailConnectorId = edge.getTailNodeConnector()
+                .getNodeConnectorIDString();
+        
         switch (type) {
         case ADDED:
-            Device headDevice = addDevice(headNode);
-            Device tailDevice = addDevice(tailNode);
+            headDevice = addDevice(headNode);
+            tailDevice = addDevice(tailNode);
 
             if (null == mGraph.findEdge(headDevice, tailDevice)) {
                 logger.info("Adding link: {} <---> {}", headDevice, tailDevice);
-                String headConnectorId = edge.getHeadNodeConnector()
-                        .getNodeConnectorIDString();
-                String tailConnectorId = edge.getTailNodeConnector()
-                        .getNodeConnectorIDString();
                 Port headPort = headDevice.createPort(headConnectorId);
                 Port tailPort = tailDevice.createPort(tailConnectorId);
                 Link link = new Link(edge.getHeadNodeConnector(), edge.getTailNodeConnector());
@@ -322,9 +324,13 @@ public class NetworkMonitor {
             logger.error("edgeUpdate type=CHANGED not implemented");
             break;
         case REMOVED:
-            // TODO just remove edge
-            // removeDevice(headNode);
-            // removeDevice(tailNode);
+            headDevice = getDevice(headNode);
+            tailDevice = getDevice(tailNode);
+            if (headDevice == null || tailDevice == null) {
+                logger.warn("No devices for removed edge. Edge should also be already deleted.");
+            } else {
+                mGraph.removeEdge(headDevice.getLink(headConnectorId));
+            }
             break;
         default:
             break;
@@ -384,7 +390,7 @@ public class NetworkMonitor {
     }
 
     /**
-     * Adds device to graph
+     * Adds device to graph if doesn't exist. Otherwise returns existing one.
      * 
      * @param node
      * @return device
@@ -399,6 +405,16 @@ public class NetworkMonitor {
             return device;
         }
         return mDevices.get(id);
+    }
+    
+    /**
+     * Returns device or null if doesn't exist.
+     * 
+     * @param node
+     * @return device
+     */
+    public Device getDevice(Node node) {
+        return mDevices.get(node.getNodeIDString());
     }
 
     /**

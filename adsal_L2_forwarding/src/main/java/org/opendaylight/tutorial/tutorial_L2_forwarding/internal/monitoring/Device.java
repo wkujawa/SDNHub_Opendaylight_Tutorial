@@ -49,6 +49,20 @@ public class Device {
     public Port getPort(String portId) {
         return mPorts.get(portId);
     }
+    
+    /**
+     * Returns link for given device's connector.
+     * @param connectorId - NodeConnectorIDString for this device
+     * @return Link between this and device
+     */
+    public Link getLink(String connectorId) {
+        Link link = null;
+        Port port = mPorts.get(connectorId);
+        if (port!=null) {
+            link = port.getLink();
+        }
+        return link;
+    }
 
     public Node getNode() {
         return mNode;
