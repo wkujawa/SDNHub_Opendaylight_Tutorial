@@ -231,7 +231,7 @@ if [ "${startdaemon}" -eq 1 ]; then
         -Dosgi.configuration.area="${confarea}/configuration" \
         -Dosgi.frameworkClassPath="${fwclasspath}" \
         -Dosgi.framework=file:"${bdir}/lib/org.eclipse.osgi-3.8.1.v20120830-144521.jar" \
-        -Djava.awt.headless=true \
+        -Djava.awt.headless=false \
         -classpath "${CLASSPATH}" \
         org.eclipse.equinox.launcher.Main \
         -console ${daemonport} \
@@ -250,7 +250,7 @@ elif [ "${consolestart}" -eq 1 ]; then
         -Dosgi.configuration.area="${confarea}/configuration" \
         -Dosgi.frameworkClassPath="${fwclasspath}" \
         -Dosgi.framework=file:"${bdir}/lib/org.eclipse.osgi-3.8.1.v20120830-144521.jar" \
-        -Djava.awt.headless=true \
+        -Djava.awt.headless=false \
         -classpath "${CLASSPATH}" \
         org.eclipse.equinox.launcher.Main \
         -console \

@@ -40,7 +40,6 @@ import edu.uci.ics.jung.graph.util.EdgeType;
 import edu.uci.ics.jung.visualization.VisualizationViewer;
 import edu.uci.ics.jung.visualization.control.DefaultModalGraphMouse;
 import edu.uci.ics.jung.visualization.control.ModalGraphMouse.Mode;
-import edu.uci.ics.jung.visualization.decorators.ToStringLabeller;
 import edu.uci.ics.jung.visualization.renderers.Renderer;
 
 public class NetworkMonitor {
@@ -143,9 +142,9 @@ public class NetworkMonitor {
                     public String transform(Device device) {
                         StringBuilder builder = new StringBuilder();
                         builder.append("<html><center>"+device.getId());
-                        for (FlowStatistics flowStatistics : device.getFlowStatistics()) {
-                            builder.append("<p>"+flowStatistics.getFlow().getMatch()+" usage: "+Utils.printWithUnit(flowStatistics.getUsage()));
-                        }
+                        //for (FlowStatistics flowStatistics : device.getFlowStatistics()) {
+                        //    builder.append("<p>"+flowStatistics.getFlow().getMatch()+" usage: "+Utils.printWithUnit(flowStatistics.getUsage()));
+                        //}
                         return builder.toString();
                     }
                 });
@@ -439,7 +438,6 @@ public class NetworkMonitor {
      * Update statistics for ports based on received data.
      */
     private void processStatistics() {
-        logger.info("--- Processsing Statistics ---");
         for (Node node : mSwitchManager.getNodes()) {
             List<NodeConnectorStatistics> stats = mStatisticsManager
                     .getNodeConnectorStatistics(node);
@@ -463,10 +461,10 @@ public class NetworkMonitor {
             
             List<FlowOnNode> flowsOnNode = mStatisticsManager.getFlows(node);
             for (FlowOnNode flowOnNode : flowsOnNode) {
-                logger.info("Flow: {} bytes: {}", flowOnNode.getFlow().toString(), flowOnNode.getByteCount());
+                logger.trace("Flow: {} bytes: {}", flowOnNode.getFlow().toString(), flowOnNode.getByteCount());
                 FlowStatistics flowStatistics = device.getFlowStatistics(flowOnNode);
                 flowStatistics.updateStatistics(mCurrentTime, flowOnNode.getByteCount());
-                logger.info("Flow usage: {}", flowStatistics.getUsage());
+                logger.trace("Flow usage: {}", flowStatistics.getUsage());
                 //TODO remove old flows - might hook some notifications about flows
             }
         }
@@ -475,7 +473,6 @@ public class NetworkMonitor {
         for (Device device : mDevices.values()) {
             device.updateLinksStatistics(mCurrentTime);
         }
-        logger.info("------------------------------");
     }
 
     public List<Link> getShortestPath(Node src, Node dst) {
