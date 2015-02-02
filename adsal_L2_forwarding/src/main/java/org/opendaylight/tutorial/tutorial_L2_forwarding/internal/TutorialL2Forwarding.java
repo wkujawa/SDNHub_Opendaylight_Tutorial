@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -31,7 +30,6 @@ import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Output;
-import org.opendaylight.controller.sal.core.ConstructionException;
 import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
@@ -50,6 +48,7 @@ import org.opendaylight.controller.sal.packet.IPv4;
 import org.opendaylight.controller.sal.packet.Packet;
 import org.opendaylight.controller.sal.packet.PacketResult;
 import org.opendaylight.controller.sal.packet.RawPacket;
+import org.opendaylight.controller.sal.reader.FlowOnNode;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.sal.utils.EtherTypes;
 import org.opendaylight.controller.sal.utils.NetUtils;
@@ -79,9 +78,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private ITopologyManager topologyManager = null;
     private IStatisticsManager statisticsManager = null;
     private IfIptoHost hostTracker = null;
-    private Map<Long, NodeConnector> mac_to_port = new HashMap<Long, NodeConnector>();
     private NetworkMonitor networkMonitor = null;
-    private String function = "hub";
+
+    private Map<Long, Map<Long, List<Link>>> routes = new HashMap<Long, Map<Long,List<Link>>>();
 
     void setDataPacketService(IDataPacketService s) {
         this.dataPacketService = s;
@@ -218,20 +217,20 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         logger.info("Stopped");
     }
 
-    private void floodPacket(RawPacket inPkt) {
-        NodeConnector incoming_connector = inPkt.getIncomingNodeConnector();
-        Node incoming_node = incoming_connector.getNode();
+    void moveFlowEmergency(NodeConnector connector) {
+        for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
+            Flow flow = flowOnNode.getFlow();
+            for (Action action : flow.getActions()) {
+                if (action.equals(new Output(connector))) {
+                    logger.info("Moving flow {}", flow);
+                    Match match = flow.getMatch();
+                    MatchField srcField = match.getField(MatchType.DL_SRC);
+                    MatchField dstField = match.getField(MatchType.DL_DST);
+                    logger.info("Removing {} <-> {}", srcField.getValue(), dstField.getValue());
+                    clearRoute((byte[])srcField.getValue(), (byte[])dstField.getValue());
+                    removeRoute((byte[])srcField.getValue(), (byte[])dstField.getValue());
 
-        Set<NodeConnector> nodeConnectors = this.switchManager
-                .getUpNodeConnectors(incoming_node);
-
-        for (NodeConnector p : nodeConnectors) {
-            if (!p.equals(incoming_connector)) {
-                try {
-                    RawPacket destPkt = new RawPacket(inPkt);
-                    destPkt.setOutgoingNodeConnector(p);
-                    this.dataPacketService.transmitDataPacket(destPkt);
-                } catch (ConstructionException e2) {
+                    // It will be programmed in standard way in reaction to PacketIn
                     continue;
                 }
             }
@@ -256,16 +255,14 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         } else {
             Object payload = packet.getPayload();
             byte[] srcMAC = ((Ethernet) packet).getSourceMACAddress();
-            long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
             byte[] dstMAC = ((Ethernet) packet).getDestinationMACAddress();
-            long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
-            
-            if (NetUtils.isBroadcastMACAddr(srcMAC) || NetUtils.isBroadcastMACAddr(dstMAC)) {
+
+           if (NetUtils.isBroadcastMACAddr(srcMAC) || NetUtils.isBroadcastMACAddr(dstMAC)) {
                 //logger.info("Broadcast {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
                 //floodPacket(inPkt); //FIXME cannot do that with loops in network
                 return PacketResult.IGNORED;
             }
-            
+
             short ethType = ((Ethernet) packet).getEtherType();
             if (ethType == EtherTypes.IPv4.shortValue()) {
                 logger.info("Got packet {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
@@ -277,11 +274,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     logger.info("Discovering.."); //TODO is it better to first query for host ?
                     Future<HostNodeConnector> fsrc = hostTracker.discoverHost(srcIP);
                     Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
-                    
+
                     try {
                         HostNodeConnector src = fsrc.get();
                         HostNodeConnector dst = fdst.get();
-                        
+
                         // Flow leading to host
                         // TODO do not duplicate
                         flowToHost(srcMAC, src.getnodeConnector());
@@ -295,6 +292,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         
                         // Graph is undirected so we need to figure out which connector is for source and which for destination
                         Node lastNode = src.getnodeconnectorNode();
+                        
                         for (Link link: path) {
                             logger.info("Path "+i+" : "+link.getSourceConnector().getNode().getNodeIDString()+" - "
                                         +link.getDestinationConnector().getNode().getNodeIDString()+" "+link.toString());
@@ -307,6 +305,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                                 lastNode = link.getSourceConnector().getNode();
                             }
                         }
+                        putRouteToMap(srcMAC, dstMAC, path);
+                        putRouteToMap(dstMAC, srcMAC, path);
+                        
                         
                         //TODO send PacketOut
                         
@@ -321,6 +322,44 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             } 
             
             return PacketResult.IGNORED;
+        }
+    }
+    
+    private void putRouteToMap(byte[] srcMAC, byte[] dstMAC, List<Link> path) {
+        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
+        long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
+        
+        Map<Long, List<Link>> paths = routes.get(srcMAC_val);
+        if (paths == null) {
+            paths = new HashMap<Long, List<Link>>();
+            routes.put(srcMAC_val, paths);
+        }
+        paths.put(dstMAC_val, path);
+    }
+    
+    private List<Link> getRoute(byte[] srcMAC, byte[] dstMAC) {
+        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
+        long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
+        Map<Long, List<Link>> paths = routes.get(srcMAC_val);
+        if (paths == null) {
+            return new ArrayList<Link>();
+        }
+        List<Link> path = paths.get(dstMAC_val);
+        if (path == null) {
+            return new ArrayList<Link>();
+        }
+        return path;
+    }
+    
+    private void removeRoute(byte[] srcMAC, byte[] dstMAC) {
+        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
+        long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
+        Map<Long, List<Link>> paths = routes.get(srcMAC_val);
+        if (paths != null) {
+            List<Link> path = paths.get(dstMAC_val);
+            if (path == null) {
+                paths.remove(dstMAC_val);
+            }
         }
     }
 
@@ -378,6 +417,38 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             return true;
         }
     }
+    
+    private void clearRoute(byte[] srtMAC, byte[] dstMAC) {
+        clearRouteOneWay(srtMAC, dstMAC);
+        clearRouteOneWay(dstMAC, srtMAC);
+    }
+
+    private void clearRouteOneWay(byte[] srcMAC, byte[] dstMAC) {
+        List<Link> path = getRoute(srcMAC, dstMAC);
+        for (Link link : path) {
+            List<NodeConnector> connectors = new ArrayList<NodeConnector>();
+            connectors.add(link.getSourceConnector());
+            connectors.add(link.getDestinationConnector());
+            for (NodeConnector connector : connectors) {
+                for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
+                    Flow flow = flowOnNode.getFlow();
+                    for (Action action : flow.getActions()) {
+                        if (action.equals(new Output(connector))) {
+                            logger.info("Matching output {}", flow);
+                            Match match = flow.getMatch();
+                            MatchField srcField = match.getField(MatchType.DL_SRC);
+                            MatchField dstField = match.getField(MatchType.DL_DST);
+                            if (srcField.equals(new MatchField(MatchType.DL_SRC, srcMAC.clone()))
+                                    && dstField.equals(new MatchField(MatchType.DL_DST, dstMAC.clone()))) {
+                                logger.info("Matching src and dst {}", flow);
+                                programmer.removeFlow(connector.getNode(), flow);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     ////////////////////////
     // ITopologyManagerAware
@@ -392,6 +463,26 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         logger.info("edgeUpdate");
         logger.info("Update:" + arg0.toString());
         networkMonitor.edgeUpdate(arg0);
+
+        for (TopoEdgeUpdate edgeUpdate : arg0) {
+            UpdateType type = edgeUpdate.getUpdateType();
+            Edge edge = edgeUpdate.getEdge();
+
+            switch (type) {
+            case ADDED:
+                break;
+            case CHANGED:
+                break;
+            case REMOVED:
+                // Flows are symmetric on both nodes so we need to check
+                // what paths are on one node
+                moveFlowEmergency(edge.getHeadNodeConnector());
+                //moveFlowEmergency(edge.getTailNodeConnector());
+                break;
+            default:
+                break;
+            }
+        }
     }
 
     @Override
