@@ -30,6 +30,7 @@ import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Output;
+import org.opendaylight.controller.sal.core.ConstructionException;
 import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
@@ -67,6 +68,8 @@ import org.osgi.framework.BundleException;
 import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.core.joran.event.InPlayListener;
 
 public class TutorialL2Forwarding implements IListenDataPacket,
         ITopologyManagerAware, IfNewHostNotify, IInventoryListener {
@@ -246,7 +249,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             return PacketResult.IGNORED;
         }
 
-        logger.debug("Got packet in" + inPkt.toString());
+        logger.debug("Got packet {}", inPkt.toString());
         
         Packet packet = this.dataPacketService.decodeDataPacket(inPkt);
 
@@ -265,7 +268,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
             short ethType = ((Ethernet) packet).getEtherType();
             if (ethType == EtherTypes.IPv4.shortValue()) {
-                logger.info("Got packet {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
+                logger.info("Got packet {} -> {} at {}", Utils.mac2str(srcMAC),
+                        Utils.mac2str(dstMAC), inPkt.getIncomingNodeConnector()
+                                .getNodeConnectorIDString());
                 logger.info("Ethtype: "+((Ethernet) packet).getEtherType());
                 
                 if (payload instanceof IPv4) {
@@ -307,10 +312,21 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         }
                         putRouteToMap(srcMAC, dstMAC, path);
                         putRouteToMap(dstMAC, srcMAC, path);
-                        
-                        
-                        //TODO send PacketOut
-                        
+
+                        // TODO first packet still is lost
+                        // is it to late ?
+                        // is it to fast ?
+                        // wrong node connector ? send to all host node connectors
+                        try {
+                            Thread.sleep(2000);
+                            RawPacket rawPacket = new RawPacket(inPkt);
+                            rawPacket.setOutgoingNodeConnector(dst.getnodeConnector());
+                            logger.info("Sending Packet: {} {}",rawPacket.getPacketData(), rawPacket.getOutgoingNodeConnector());
+                            dataPacketService.transmitDataPacket(rawPacket);
+                        } catch (ConstructionException e) {
+                            logger.error("Cannot construct packet: {}",e);
+                        }
+
                         return PacketResult.CONSUME;
                     } catch (InterruptedException | ExecutionException e) {
                         // TODO Auto-generated catch block
