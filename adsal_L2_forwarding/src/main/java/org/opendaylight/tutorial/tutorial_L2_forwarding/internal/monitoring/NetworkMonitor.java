@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
+import edu.uci.ics.jung.algorithms.shortestpath.DijkstraKShortestPath;
 import edu.uci.ics.jung.algorithms.shortestpath.DijkstraShortestPath;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.UndirectedSparseMultigraph;
@@ -57,6 +58,7 @@ public class NetworkMonitor {
     private VisualizationViewer<Device, Link> mVisualizationViewer;
     
     DijkstraShortestPath<Device, Link> dijkstra = null; 
+    DijkstraKShortestPath<Device, Link> kDijkstra = null; 
     Transformer<Link, ? extends Number> mTransformer = new LinkTransformer();
     
     private long mCurrentTime;
@@ -94,6 +96,7 @@ public class NetworkMonitor {
         mDevices = new HashMap<String, Device>();
         mGraph = new UndirectedSparseMultigraph<Device, Link>();
         dijkstra = new DijkstraShortestPath<Device, Link>(mGraph, mTransformer);
+        kDijkstra = new DijkstraKShortestPath<Device, Link>(mGraph);
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
@@ -491,6 +494,23 @@ public class NetworkMonitor {
         }
     }
 
+    //TODO
+    public void getKShortestPath(Node src, Node dst, Integer K) {
+        Device srcDev = mDevices.get(src.getNodeIDString());
+        Device dstDev = mDevices.get(dst.getNodeIDString());
+        logger.info("--- Starting K Shortest Paths ---");
+        List<List<Device>> paths = kDijkstra.getPath(srcDev, dstDev, K);
+        
+        logger.info("--- K Shortest Paths ---");
+        for (List<Device> devices : paths) {
+            logger.info("Path:");
+            for (Device device : devices) {
+                logger.info("Device: "+device);
+            }
+        }
+        logger.info("------------------------");
+    }
+    
     public List<Link> getShortestPath(Node src, Node dst) {
         Device srcDev = mDevices.get(src.getNodeIDString());
         Device dstDev = mDevices.get(dst.getNodeIDString());

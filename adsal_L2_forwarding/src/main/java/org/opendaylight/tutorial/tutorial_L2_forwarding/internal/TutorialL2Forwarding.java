@@ -292,6 +292,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         logger.info("{} at {}, {} at {}",
                                 srcIP, src.getnodeconnectorNode().getNodeIDString(),
                                 dstIP, dst.getnodeconnectorNode().getNodeIDString());
+                        logger.info("Looking for k-paths");
+                        networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),2);
                         List<Link> path = networkMonitor.getShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode());
                         int i = 0;
                         
