@@ -9,6 +9,7 @@ public class Link {
 	private final NodeConnector mSourceConnector;
 	private final NodeConnector mDestinationConnector;
 	private long mUsage;
+	private long mDropCount;
 	private long mUpdateTime;
 	private long mBandwidth;
 	static Transformer<Link, ? extends Number> mTransformer = new LinkTransformer();
@@ -24,10 +25,14 @@ public class Link {
 	@Override
 	public String toString() {
 	    return "["+Utils.printWithUnit(mUsage)+"] ["
-	            + new DecimalFormat("#.#").format((double)mUsage/(double)mBandwidth*100) +"% ] W<"+mTransformer.transform(this)+">";
+	            + new DecimalFormat("#.#").format((double)mUsage/(double)mBandwidth*100) +"% ] W<"+mTransformer.transform(this)+"> Drops: "+mDropCount;
 	}
 	
-	public NodeConnector getSourceConnector() {
+	public long getDropCount() {
+        return mDropCount;
+    }
+
+    public NodeConnector getSourceConnector() {
 		return mSourceConnector;
 	}
 
@@ -55,8 +60,9 @@ public class Link {
         return getSourceConnector().equals(getDestinationConnector());
     }
 
-    protected void updateStatistic(long timestamp, long usage) {
+    protected void updateStatistic(long timestamp, long usage, long drops) {
 		mUpdateTime = timestamp;
 		mUsage = usage;
+		mDropCount = drops;
 	}
 }

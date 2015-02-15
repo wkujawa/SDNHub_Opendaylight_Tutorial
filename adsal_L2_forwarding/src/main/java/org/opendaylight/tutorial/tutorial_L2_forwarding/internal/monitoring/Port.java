@@ -15,8 +15,12 @@ public class Port {
 	
 	private long mLastReceived;
 	private long mLastSent;
+	private long mLastDropReceive;
+	private long mLastDropTransmit;
 	private long mPreviousReceived;
 	private long mPreviousSent;
+	private long mPreviousDropReceive;
+    private long mPreviousDropTransmit;
 	
 	public Port(Device parent, String portId) {
 		mParent = parent;
@@ -29,7 +33,7 @@ public class Port {
 	public String toString() {
 		String target = mTargetPort != null ? mTargetPort.getPortId(): "Unknown";
 		return "Port [ " + mPortId + " -> " + target  + " ] "+
-				"S: "+getSendingRate()+" / R: "+getReceivingRate();
+				"S: "+getSendingRate()+" / R: "+getReceivingRate()+" Drop: "+getDropCount();
 	}
 	
 	public String getPortId() {
@@ -64,6 +68,10 @@ public class Port {
 	public Link getLink() {
 		return mLink;
 	}
+
+    public long getDropCount() {
+        return (mLastDropReceive-mPreviousDropReceive) + (mLastDropTransmit-mPreviousDropTransmit);
+    }
 	
 	protected void setTargetPort(Port targetPort) {
 		this.mTargetPort = targetPort;
@@ -73,18 +81,22 @@ public class Port {
 		this.mLink = link;
 	}
 	
-	protected void updateStatistics(long timestamp, long sent, long received) {
+	protected void updateStatistics(long timestamp, long sent, long received, long dropReceived, long dropTransmit) {
 		mPreviousTimestamp = mLastTimestamp;
 		mPreviousSent = mLastSent;
 		mPreviousReceived = mLastReceived;
+		mPreviousDropReceive = mLastDropReceive;
+		mPreviousDropTransmit = mLastDropTransmit;
 		
 		mLastTimestamp = timestamp;
 		mLastSent = sent;
 		mLastReceived = received;
+		mLastDropReceive = dropReceived;
+		mLastDropTransmit = dropTransmit;
 	}
 
 	private double getTimeDiffSeconds() {
 		return (mLastTimestamp-mPreviousTimestamp) / 1000.0;
 	}
-
+	
 }

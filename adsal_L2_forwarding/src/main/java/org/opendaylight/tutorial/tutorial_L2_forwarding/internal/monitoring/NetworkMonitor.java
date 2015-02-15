@@ -155,7 +155,7 @@ public class NetworkMonitor {
                         StringBuilder builder = new StringBuilder();
                         builder.append("<html><center>"+Utils.printWithUnit(link.getUsage()));
                         builder.append("<p>["+new DecimalFormat("#.#").format((double)link.getUsage()/(double)link.getBandwidth()*100) +"% ]");
-                        builder.append("<p>w:"+mTransformer.transform(link));
+                        builder.append("<p>w:"+mTransformer.transform(link)+" Drops:"+link.getDropCount());
                         return builder.toString();
                     }
                 });
@@ -472,7 +472,8 @@ public class NetworkMonitor {
                 }
                 // We get in bytes, but want in bites
                 //TODO move byte/bites conversion and add proper comments
-                port.updateStatistics(mCurrentTime, 8*nodeStat.getTransmitByteCount(), 8*nodeStat.getReceiveByteCount());
+                port.updateStatistics(mCurrentTime, 8*nodeStat.getTransmitByteCount(), 8*nodeStat.getReceiveByteCount(),
+                        nodeStat.getReceiveDropCount(), nodeStat.getTransmitDropCount());
             }
             
             List<FlowOnNode> flowsOnNode = mStatisticsManager.getFlows(node);

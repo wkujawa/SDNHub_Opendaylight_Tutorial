@@ -111,7 +111,7 @@ public class Device {
             if (link != null) {
                 if (time > link.getUpdateTime()) {
                     // First device makes update
-                    link.updateStatistic(time, port.getDataRate());
+                    link.updateStatistic(time, port.getDataRate(), port.getDropCount());
                 } else if (time == link.getUpdateTime()) {
                     if (!link.isHostLink()) {
                         // Do that only for links between switches. Host got
@@ -119,10 +119,11 @@ public class Device {
                         // Second side of link makes update
                         // Statistic of link as average of both
                         long usage = (link.getUsage() + port.getDataRate()) / 2;
-                        link.updateStatistic(time, usage);
+                        long drop = (link.getDropCount() + port.getDropCount()); //Sum of both ports
+                        link.updateStatistic(time, usage, drop);
                     } else {
                         long usage = link.getUsage() + port.getDataRate();
-                        link.updateStatistic(time, usage);
+                        link.updateStatistic(time, usage, port.getDropCount());
                     }
                 }
             }
