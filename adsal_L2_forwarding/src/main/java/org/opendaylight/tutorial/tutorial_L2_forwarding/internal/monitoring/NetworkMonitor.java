@@ -35,6 +35,7 @@ import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
 import edu.uci.ics.jung.algorithms.shortestpath.DijkstraKShortestPath;
 import edu.uci.ics.jung.algorithms.shortestpath.DijkstraShortestPath;
+import edu.uci.ics.jung.algorithms.shortestpath.Path;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.UndirectedSparseMultigraph;
 import edu.uci.ics.jung.graph.util.EdgeType;
@@ -494,21 +495,12 @@ public class NetworkMonitor {
         }
     }
 
-    //TODO
-    public void getKShortestPath(Node src, Node dst, Integer K) {
+    public List<Path<Device,Link>> getKShortestPath(Node src, Node dst, Integer K) {
         Device srcDev = mDevices.get(src.getNodeIDString());
         Device dstDev = mDevices.get(dst.getNodeIDString());
         logger.info("--- Starting K Shortest Paths ---");
-        List<List<Device>> paths = kDijkstra.getPath(srcDev, dstDev, K);
-        
-        logger.info("--- K Shortest Paths ---");
-        for (List<Device> devices : paths) {
-            logger.info("Path:");
-            for (Device device : devices) {
-                logger.info("Device: "+device);
-            }
-        }
-        logger.info("------------------------");
+        List<Path<Device,Link>> paths = kDijkstra.getPath(srcDev, dstDev, K);
+        return paths;
     }
     
     public List<Link> getShortestPath(Node src, Node dst) {

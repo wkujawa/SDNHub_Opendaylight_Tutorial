@@ -19,7 +19,6 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -41,7 +40,6 @@ import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.match.Match;
 import org.opendaylight.controller.sal.match.MatchField;
 import org.opendaylight.controller.sal.match.MatchType;
-import org.opendaylight.controller.sal.packet.BitBufferHelper;
 import org.opendaylight.controller.sal.packet.Ethernet;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
@@ -59,8 +57,11 @@ import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.RoutesMap;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Utils;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
@@ -68,8 +69,6 @@ import org.osgi.framework.BundleException;
 import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.core.joran.event.InPlayListener;
 
 public class TutorialL2Forwarding implements IListenDataPacket,
         ITopologyManagerAware, IfNewHostNotify, IInventoryListener {
@@ -83,7 +82,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private IfIptoHost hostTracker = null;
     private NetworkMonitor networkMonitor = null;
 
-    private Map<Long, Map<Long, List<Link>>> routes = new HashMap<Long, Map<Long,List<Link>>>();
+    private int K = 5;
+    private RoutesMap routesMap = new RoutesMap(); 
 
     void setDataPacketService(IDataPacketService s) {
         this.dataPacketService = s;
@@ -231,7 +231,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     MatchField dstField = match.getField(MatchType.DL_DST);
                     logger.info("Removing {} <-> {}", srcField.getValue(), dstField.getValue());
                     clearRoute((byte[])srcField.getValue(), (byte[])dstField.getValue());
-                    removeRoute((byte[])srcField.getValue(), (byte[])dstField.getValue());
+                    //Remove all routes and find again K shortest paths (Will be done on Packet IN).
+                    //Of course it is not optimal solution. //TODO
+                    routesMap.removeRoutes((byte[])srcField.getValue(), (byte[])dstField.getValue());
 
                     // It will be programmed in standard way in reaction to PacketIn
                     continue;
@@ -293,8 +295,35 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                                 srcIP, src.getnodeconnectorNode().getNodeIDString(),
                                 dstIP, dst.getnodeconnectorNode().getNodeIDString());
                         logger.info("Looking for k-paths");
-                        networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),2);
-                        List<Link> path = networkMonitor.getShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode());
+                        List<Route> routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),K));
+                        
+                        
+                        logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
+                        for (Route route : routes) {
+                            logger.info("Path:");
+                            for (Device device : route.getPath().getVertices()) {
+                                logger.info("Device: "+device);
+                            }
+                            logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
+                        }
+                        logger.info("------------------------");
+                        
+                        
+                        routesMap.addRoutes(routes, srcMAC, dstMAC);
+                        Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
+                        bestRoute.setActive(true);
+                        
+                        logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
+                        for (Route route : routes) {
+                            logger.info("Path:");
+                            for (Device device : route.getPath().getVertices()) {
+                                logger.info("Device: "+device);
+                            }
+                            logger.info("Cost: {} PDR: {} Active: {}",route.getCost(),route.getPacketsDropped(), route.isActive());
+                        }
+                        logger.info("------------------------");
+                        
+                        List<Link> path = bestRoute.getPath().getEdges();
                         int i = 0;
                         
                         // Graph is undirected so we need to figure out which connector is for source and which for destination
@@ -312,8 +341,6 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                                 lastNode = link.getSourceConnector().getNode();
                             }
                         }
-                        putRouteToMap(srcMAC, dstMAC, path);
-                        putRouteToMap(dstMAC, srcMAC, path);
 
                         // TODO first packet still is lost
                         // is it to late ?
@@ -340,44 +367,6 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             } 
             
             return PacketResult.IGNORED;
-        }
-    }
-    
-    private void putRouteToMap(byte[] srcMAC, byte[] dstMAC, List<Link> path) {
-        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
-        long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
-        
-        Map<Long, List<Link>> paths = routes.get(srcMAC_val);
-        if (paths == null) {
-            paths = new HashMap<Long, List<Link>>();
-            routes.put(srcMAC_val, paths);
-        }
-        paths.put(dstMAC_val, path);
-    }
-    
-    private List<Link> getRoute(byte[] srcMAC, byte[] dstMAC) {
-        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
-        long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
-        Map<Long, List<Link>> paths = routes.get(srcMAC_val);
-        if (paths == null) {
-            return new ArrayList<Link>();
-        }
-        List<Link> path = paths.get(dstMAC_val);
-        if (path == null) {
-            return new ArrayList<Link>();
-        }
-        return path;
-    }
-    
-    private void removeRoute(byte[] srcMAC, byte[] dstMAC) {
-        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
-        long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
-        Map<Long, List<Link>> paths = routes.get(srcMAC_val);
-        if (paths != null) {
-            List<Link> path = paths.get(dstMAC_val);
-            if (path == null) {
-                paths.remove(dstMAC_val);
-            }
         }
     }
 
@@ -442,7 +431,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     }
 
     private void clearRouteOneWay(byte[] srcMAC, byte[] dstMAC) {
-        List<Link> path = getRoute(srcMAC, dstMAC);
+        List<Link> path = routesMap.getActiveRoute(srcMAC, dstMAC).getPath().getEdges();
         for (Link link : path) {
             List<NodeConnector> connectors = new ArrayList<NodeConnector>();
             connectors.add(link.getSourceConnector());
@@ -495,7 +484,6 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 // Flows are symmetric on both nodes so we need to check
                 // what paths are on one node
                 moveFlowEmergency(edge.getHeadNodeConnector());
-                //moveFlowEmergency(edge.getTailNodeConnector());
                 break;
             default:
                 break;
