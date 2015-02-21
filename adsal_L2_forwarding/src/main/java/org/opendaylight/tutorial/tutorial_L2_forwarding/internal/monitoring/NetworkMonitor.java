@@ -28,14 +28,14 @@ import org.opendaylight.controller.sal.reader.NodeConnectorStatistics;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.DijkstraKShortestPath;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
-import edu.uci.ics.jung.algorithms.shortestpath.DijkstraKShortestPath;
 import edu.uci.ics.jung.algorithms.shortestpath.DijkstraShortestPath;
-import edu.uci.ics.jung.algorithms.shortestpath.Path;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.UndirectedSparseMultigraph;
 import edu.uci.ics.jung.graph.util.EdgeType;

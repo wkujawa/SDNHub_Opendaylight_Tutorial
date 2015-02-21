@@ -4,7 +4,7 @@ import java.text.DecimalFormat;
 import java.util.LinkedList;
 import java.util.List;
 
-import edu.uci.ics.jung.algorithms.shortestpath.Path;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 
 public class Utils {
 	public final static long BASE = 1024; // TODO is that base in OpenFlow, etc.
