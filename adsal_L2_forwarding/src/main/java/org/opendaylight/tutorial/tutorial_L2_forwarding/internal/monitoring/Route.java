@@ -6,6 +6,7 @@ public class Route implements Comparable<Route>{
     private Path<Device, Link> path;
     private boolean isActive = false;
     private long packetsDropped = 0;
+    private long freeBandwidth = 0;
     private long cost = 0;
     
     public Route(Path<Device, Link> p) {
@@ -48,7 +49,12 @@ public class Route implements Comparable<Route>{
      * Calculates and sets cost of path.
      */
     public void evaluate() {
-        cost = path.getHops();
+        freeBandwidth = Long.MAX_VALUE;
+        for (Link link : path.getEdges()) {
+            freeBandwidth = Math.min(freeBandwidth,
+                    link.getBandwidth() - link.getUsage());
+        }
+        cost = path.getHops() + Utils.MB*100 - freeBandwidth;
     }
 
     @Override
@@ -59,7 +65,7 @@ public class Route implements Comparable<Route>{
     @Override
     public String toString() {
         return "Route [path=" + path + ", isActive=" + isActive
-                + ", packetsDropped=" + packetsDropped + ", cost=" + cost + "]";
+                + ", packetsDropped=" + packetsDropped + ", cost=" + cost + ", freeBandwidth="+freeBandwidth+"]";
     }
 
 }
