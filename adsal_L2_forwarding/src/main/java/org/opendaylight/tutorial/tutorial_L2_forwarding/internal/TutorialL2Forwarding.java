@@ -95,11 +95,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         }
     }
 
-    public void setFlowProgrammerService(IFlowProgrammerService s) {
+    void setFlowProgrammerService(IFlowProgrammerService s) {
         this.programmer = s;
     }
 
-    public void unsetFlowProgrammerService(IFlowProgrammerService s) {
+    void unsetFlowProgrammerService(IFlowProgrammerService s) {
         if (this.programmer == s) {
             this.programmer = null;
         }
