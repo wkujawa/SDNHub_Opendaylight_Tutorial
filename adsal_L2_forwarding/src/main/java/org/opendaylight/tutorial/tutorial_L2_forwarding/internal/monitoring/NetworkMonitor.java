@@ -28,6 +28,8 @@ import org.opendaylight.controller.sal.reader.NodeConnectorStatistics;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.DijkstraKShortestPath;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +59,7 @@ public class NetworkMonitor {
     private VisualizationViewer<Device, Link> mVisualizationViewer;
     
     DijkstraShortestPath<Device, Link> dijkstra = null; 
+    DijkstraKShortestPath<Device, Link> kDijkstra = null; 
     Transformer<Link, ? extends Number> mTransformer = new LinkTransformer();
     
     private long mCurrentTime;
@@ -94,6 +97,7 @@ public class NetworkMonitor {
         mDevices = new HashMap<String, Device>();
         mGraph = new UndirectedSparseMultigraph<Device, Link>();
         dijkstra = new DijkstraShortestPath<Device, Link>(mGraph, mTransformer);
+        kDijkstra = new DijkstraKShortestPath<Device, Link>(mGraph);
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
@@ -492,6 +496,14 @@ public class NetworkMonitor {
         }
     }
 
+    public List<Path<Device,Link>> getKShortestPath(Node src, Node dst, Integer K) {
+        Device srcDev = mDevices.get(src.getNodeIDString());
+        Device dstDev = mDevices.get(dst.getNodeIDString());
+        logger.info("--- Starting K Shortest Paths ---");
+        List<Path<Device,Link>> paths = kDijkstra.getPath(srcDev, dstDev, K);
+        return paths;
+    }
+    
     public List<Link> getShortestPath(Node src, Node dst) {
         Device srcDev = mDevices.get(src.getNodeIDString());
         Device dstDev = mDevices.get(dst.getNodeIDString());
