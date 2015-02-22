@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -71,7 +72,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TutorialL2Forwarding implements IListenDataPacket,
-        ITopologyManagerAware, IfNewHostNotify, IInventoryListener {
+        ITopologyManagerAware, IfNewHostNotify, IInventoryListener,
+        ITEE{
     private static final Logger logger = LoggerFactory
             .getLogger(TutorialL2Forwarding.class);
     private ISwitchManager switchManager = null;
@@ -544,4 +546,17 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             Map<String, Property> arg2) {
         logger.info("notifyNodeConnector");
     }
+    
+
+    ////////
+    // ITEE
+    ////////
+    public NetworkMonitor getNetworkMonitor() {
+        return networkMonitor;
+    }
+
+    public Set<HostNodeConnector> getAllHosts() {
+        return hostTracker.getAllHosts();
+    }
+
 }

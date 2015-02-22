@@ -86,7 +86,8 @@ public class Activator extends ComponentActivatorAbstractBase {
             c.setInterface(new String[] { IListenDataPacket.class.getName(),
                             ITopologyManagerAware.class.getName(),
                             IfNewHostNotify.class.getName(),
-                            IInventoryListener.class.getName() }, props);
+                            IInventoryListener.class.getName(),
+                            ITEE.class.getName() }, props);
 
             // register dependent modules
             c.add(createContainerServiceDependency(containerName).setService(

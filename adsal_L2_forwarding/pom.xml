@@ -23,7 +23,9 @@
         <configuration>
           <instructions>
             <Export-Package>
-              org.opendaylight.tutorial.tutorial_L2_forwarding,
+              org.opendaylight.tutorial.tutorial_L2_forwarding.internal,
+              org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring,
+              org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath,
               edu.uci.ics.jung.visualization*
             </Export-Package>
             <Bundle-Activator>
