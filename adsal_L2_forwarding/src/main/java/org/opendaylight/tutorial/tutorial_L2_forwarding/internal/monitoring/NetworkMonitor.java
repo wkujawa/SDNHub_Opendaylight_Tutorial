@@ -9,6 +9,7 @@ import java.awt.Graphics;
 import java.awt.Paint;
 import java.awt.Stroke;
 import java.text.DecimalFormat;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -522,5 +523,13 @@ public class NetworkMonitor {
             }
         }
         return sum;
+    }
+    
+    public Collection<Link> getLinks() {
+        return mGraph.getEdges();
+    }
+    
+    public Collection<Device> getDevices() {
+        return mGraph.getVertices();
     }
 }

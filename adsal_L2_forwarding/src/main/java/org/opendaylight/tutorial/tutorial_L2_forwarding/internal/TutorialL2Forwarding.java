@@ -19,6 +19,7 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -557,6 +558,14 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
     public Set<HostNodeConnector> getAllHosts() {
         return hostTracker.getAllHosts();
+    }
+    
+    public Collection<Link> getLinks() {
+        return networkMonitor.getLinks();
+    }
+    
+    public Collection<Device> getDevices() {
+        return networkMonitor.getDevices();
     }
 
 }
