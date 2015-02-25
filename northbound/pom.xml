@@ -76,6 +76,7 @@
           <instructions>
              <Import-Package>
               org.opendaylight.tutorial.tutorial_L2_forwarding.internal,
+              org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring,
               org.opendaylight.controller.hosttracker.hostAware,
               org.apache.commons.logging,
               com.sun.jersey.spi.container.servlet,

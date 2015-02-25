@@ -1,5 +1,6 @@
 package org.opendaylight.controller.tee.northbound;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -14,6 +15,8 @@ import org.opendaylight.controller.northbound.commons.RestMessages;
 import org.opendaylight.controller.northbound.commons.exception.ServiceUnavailableException;
 import org.opendaylight.controller.sal.utils.ServiceHelper;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.ITEE;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
 
 @Path("/")
 public class TEENorthbound {
@@ -43,6 +46,32 @@ public class TEENorthbound {
             set.add(new Host(hostConnector));
         }
         return set;
+    }
+    
+    /**
+     * Get active links (edges)
+     * 
+     * @return - list of links
+     */
+    @Path("/links")
+    @Produces(MediaType.APPLICATION_JSON)
+    @GET
+    public Collection<Link> getLinks() {
+        ITEE tee = getTEE();
+        return tee.getLinks();
+    }
+    
+    /**
+     * Get active devices (switches)
+     * 
+     * @return - list of devices
+     */
+    @Path("/devices")
+    @Produces(MediaType.APPLICATION_JSON)
+    @GET
+    public Collection<Device> getDevices() {
+        ITEE tee = getTEE();
+        return tee.getDevices();
     }
 
     private ITEE getTEE() {
