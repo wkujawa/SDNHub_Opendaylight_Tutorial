@@ -2,7 +2,6 @@ package org.opendaylight.controller.tee.northbound;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import javax.ws.rs.GET;
@@ -25,7 +24,7 @@ import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Rout
 public class TEENorthbound {
     /**
      * Just simple test
-     * 
+     *
      * @return - test message
      */
     @Path("/test")
@@ -36,7 +35,7 @@ public class TEENorthbound {
 
     /**
      * Get detected hosts
-     * 
+     *
      * @return - list of hosts
      */
     @Path("/hosts")
@@ -50,10 +49,10 @@ public class TEENorthbound {
         }
         return set;
     }
-    
+
     /**
      * Get active links (edges)
-     * 
+     *
      * @return - list of links
      */
     @Path("/links")
@@ -63,10 +62,10 @@ public class TEENorthbound {
         ITEE tee = getTEE();
         return tee.getLinks();
     }
-    
+
     /**
      * Get active devices (switches)
-     * 
+     *
      * @return - list of devices
      */
     @Path("/devices")
@@ -86,7 +85,7 @@ public class TEENorthbound {
         System.out.println("NB :: "+srcIP+" to "+dstIP);
         return tee.getRoutes(srcIP, dstIP);
     }
-    
+
     private ITEE getTEE() {
         ITEE tee = (ITEE) ServiceHelper
                 .getGlobalInstance(ITEE.class, this);
