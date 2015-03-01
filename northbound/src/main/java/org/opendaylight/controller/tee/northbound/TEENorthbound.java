@@ -2,10 +2,12 @@ package org.opendaylight.controller.tee.northbound;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -17,6 +19,7 @@ import org.opendaylight.controller.sal.utils.ServiceHelper;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.ITEE;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
 
 @Path("/")
 public class TEENorthbound {
@@ -74,6 +77,16 @@ public class TEENorthbound {
         return tee.getDevices();
     }
 
+
+    @Path("/routes/{srcIP}/{dstIP}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @GET
+    public Collection<Route> getRoutes(@PathParam("srcIP") String srcIP, @PathParam("dstIP") String dstIP) {
+        ITEE tee = getTEE();
+        System.out.println("NB :: "+srcIP+" to "+dstIP);
+        return tee.getRoutes(srcIP, dstIP);
+    }
+    
     private ITEE getTEE() {
         ITEE tee = (ITEE) ServiceHelper
                 .getGlobalInstance(ITEE.class, this);
@@ -84,4 +97,5 @@ public class TEENorthbound {
         }
         return tee;
     }
+
 }
