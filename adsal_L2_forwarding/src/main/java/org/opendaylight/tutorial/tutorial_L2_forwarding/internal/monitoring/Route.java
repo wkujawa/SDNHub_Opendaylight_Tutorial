@@ -9,7 +9,7 @@ public class Route implements Comparable<Route>{
     private long availableBandwidth = 0;
     private long bandwidth = 0;
     private long cost = 0;
-    
+
     public Route(Path<Device, Link> p) {
         path = p;
         setBandwitdh();

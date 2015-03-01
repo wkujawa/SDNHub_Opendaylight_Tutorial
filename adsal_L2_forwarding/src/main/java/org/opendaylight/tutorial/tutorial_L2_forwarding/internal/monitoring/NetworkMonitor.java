@@ -58,11 +58,11 @@ public class NetworkMonitor {
     private Graph<Device, Link> mGraph;
     private Layout<Device, Link> mVisualizer;
     private VisualizationViewer<Device, Link> mVisualizationViewer;
-    
-    DijkstraShortestPath<Device, Link> dijkstra = null; 
-    DijkstraKShortestPath<Device, Link> kDijkstra = null; 
+
+    DijkstraShortestPath<Device, Link> dijkstra = null;
+    DijkstraKShortestPath<Device, Link> kDijkstra = null;
     Transformer<Link, ? extends Number> mTransformer = new LinkTransformer();
-    
+
     private long mCurrentTime;
 
     /**
@@ -168,6 +168,7 @@ public class NetworkMonitor {
         // Coloring
         // Nodes
         Transformer<Device, Paint> vertexPaint = new Transformer<Device, Paint>() {
+            @Override
             public Paint transform(Device device) {
                 if (device.getType() == DeviceType.HOST) {
                     return Color.BLUE;
@@ -184,6 +185,7 @@ public class NetworkMonitor {
         // Edges
         final Stroke edgeStroke = new BasicStroke(8.0f);
         Transformer<Link, Stroke> edgeStrokeTransformer = new Transformer<Link, Stroke>() {
+            @Override
             public Stroke transform(Link s) {
                 return edgeStroke;
             }
@@ -192,6 +194,7 @@ public class NetworkMonitor {
                 edgeStrokeTransformer);
 
         Transformer<Link, Paint> edgePaint = new Transformer<Link, Paint>() {
+            @Override
             public Paint transform(Link link) {
                 if (link.getUsage() >= 0.75 * link.getBandwidth()) {
                     return Color.RED;
@@ -205,7 +208,7 @@ public class NetworkMonitor {
         // mVisualizationViewer.getRenderContext().setEdgeFillPaintTransformer(edgePaint);
         mVisualizationViewer.getRenderContext().setEdgeDrawPaintTransformer(
                 edgePaint);
-        
+
         mVisualizationViewer.addPostRenderPaintable(new VisualizationViewer.Paintable(){
             int x;
             int y;
@@ -213,7 +216,8 @@ public class NetworkMonitor {
             FontMetrics metrics;
             int swidth;
             int sheight;
-            
+
+            @Override
             public void paint(Graphics g) {
                 Dimension d = mVisualizationViewer.getSize();
                 String str = "MaxThroughput: "+Utils.printWithUnit(getMaxThroughput());
@@ -232,6 +236,7 @@ public class NetworkMonitor {
                 g.drawString(str, x, y);
                 g.setColor(oldColor);
             }
+            @Override
             public boolean useTransform() {
                 return false;
             }
@@ -255,7 +260,7 @@ public class NetworkMonitor {
 
     /**
      * Add edges to graph
-     * 
+     *
      * @param edgesMap
      */
     public void addEdges(Map<Edge, Set<Property>> edgesMap) {
@@ -267,7 +272,7 @@ public class NetworkMonitor {
 
     /**
      * Apply edge update
-     * 
+     *
      * @param arg0
      *            - list of updates
      */
@@ -284,7 +289,7 @@ public class NetworkMonitor {
 
     /**
      * Applies edge update to graph
-     * 
+     *
      * @param edge
      *            - edge
      * @param type
@@ -301,7 +306,7 @@ public class NetworkMonitor {
                 .getNodeConnectorIDString();
         String tailConnectorId = edge.getTailNodeConnector()
                 .getNodeConnectorIDString();
-        
+
         switch (type) {
         case ADDED:
             headDevice = addDevice(headNode);
@@ -344,7 +349,7 @@ public class NetworkMonitor {
 
     /**
      * Adds host to graph
-     * 
+     *
      * @param arg0
      */
     public void addHost(HostNodeConnector arg0) {
@@ -380,7 +385,7 @@ public class NetworkMonitor {
 
     /**
      * Removes host from graph
-     * 
+     *
      * @param arg0
      */
     public void removeHost(HostNodeConnector arg0) {
@@ -396,7 +401,7 @@ public class NetworkMonitor {
 
     /**
      * Adds device to graph if doesn't exist. Otherwise returns existing one.
-     * 
+     *
      * @param node
      * @return device
      */
@@ -411,10 +416,10 @@ public class NetworkMonitor {
         }
         return mDevices.get(id);
     }
-    
+
     /**
      * Returns device or null if doesn't exist.
-     * 
+     *
      * @param node
      * @return device
      */
@@ -424,7 +429,7 @@ public class NetworkMonitor {
 
     /**
      * Removes device and edges to it from graph
-     * 
+     *
      * @param node
      */
     public void removeDevice(Node node) {
@@ -439,7 +444,7 @@ public class NetworkMonitor {
 
     /**
      * Sets Statistic Manager that is needed for statistics collection.
-     * 
+     *
      * @param statisticsManager
      */
     public void setStatisticsManager(IStatisticsManager statisticsManager) {
@@ -448,7 +453,7 @@ public class NetworkMonitor {
 
     /**
      * Sets Switch Manager
-     * 
+     *
      * @param switchManager
      */
     public void setSwitchManager(ISwitchManager switchManager) {
@@ -480,7 +485,7 @@ public class NetworkMonitor {
                 port.updateStatistics(mCurrentTime, 8*nodeStat.getTransmitByteCount(), 8*nodeStat.getReceiveByteCount(),
                         nodeStat.getReceiveDropCount(), nodeStat.getTransmitDropCount());
             }
-            
+
             List<FlowOnNode> flowsOnNode = mStatisticsManager.getFlows(node);
             for (FlowOnNode flowOnNode : flowsOnNode) {
                 logger.trace("Flow: {} bytes: {}", flowOnNode.getFlow().toString(), flowOnNode.getByteCount());
@@ -504,7 +509,7 @@ public class NetworkMonitor {
         List<Path<Device,Link>> paths = kDijkstra.getPath(srcDev, dstDev, K);
         return paths;
     }
-    
+
     public List<Link> getShortestPath(Node src, Node dst) {
         Device srcDev = mDevices.get(src.getNodeIDString());
         Device dstDev = mDevices.get(dst.getNodeIDString());
@@ -514,7 +519,7 @@ public class NetworkMonitor {
         path = dijkstra.getPath(srcDev, dstDev);
         return path;
     }
-    
+
     public long getMaxThroughput() {
         long sum = 0;
         for (Link link : mGraph.getEdges()) {
@@ -524,11 +529,11 @@ public class NetworkMonitor {
         }
         return sum;
     }
-    
+
     public Collection<Link> getLinks() {
         return mGraph.getEdges();
     }
-    
+
     public Collection<Device> getDevices() {
         return mGraph.getVertices();
     }

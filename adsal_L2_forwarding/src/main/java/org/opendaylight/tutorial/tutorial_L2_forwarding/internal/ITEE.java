@@ -18,12 +18,12 @@ import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Rout
  */
 public interface ITEE {
     public NetworkMonitor getNetworkMonitor();
-    
+
     public Set<HostNodeConnector> getAllHosts();
-    
+
     public Collection<Link> getLinks();
-    
+
     public Collection<Device> getDevices();
-    
+
     public Collection<Route> getRoutes(String srcIP, String dstIP);
 }

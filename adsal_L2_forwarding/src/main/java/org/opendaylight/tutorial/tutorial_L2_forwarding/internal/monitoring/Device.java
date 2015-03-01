@@ -43,7 +43,7 @@ public class Device {
 
     /**
      * Returns port for given id.
-     * 
+     *
      * @param portId
      *            - port ID
      * @return port handle, null if don't exist.
@@ -51,7 +51,7 @@ public class Device {
     public Port getPort(String portId) {
         return mPorts.get(portId);
     }
-    
+
     /**
      * Returns link for given device's connector.
      * @param connectorId - NodeConnectorIDString for this device
@@ -72,7 +72,7 @@ public class Device {
 
     /**
      * Returns flow statistics for given flow or "null" if not found.
-     * 
+     *
      * @param flow
      * @return flow statistics or null
      */
@@ -93,7 +93,7 @@ public class Device {
 
     /**
      * Creates port if does not exist.
-     * 
+     *
      * @param portId
      *            - port ID
      * @return port - handle
