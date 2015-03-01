@@ -8,6 +8,8 @@ import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.controller.sal.reader.FlowOnNode;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 public class Device {
     private Node mNode;
     private String mId;
@@ -84,6 +86,7 @@ public class Device {
         return flowStatistics;
     }
 
+    @JsonIgnore
     public Collection<FlowStatistics> getFlowStatistics() {
         return mFlows.values();
     }

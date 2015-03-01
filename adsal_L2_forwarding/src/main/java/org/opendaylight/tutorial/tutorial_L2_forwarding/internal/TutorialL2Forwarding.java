@@ -42,6 +42,7 @@ import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.match.Match;
 import org.opendaylight.controller.sal.match.MatchField;
 import org.opendaylight.controller.sal.match.MatchType;
+import org.opendaylight.controller.sal.packet.BitBufferHelper;
 import org.opendaylight.controller.sal.packet.Ethernet;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
@@ -59,6 +60,7 @@ import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.ArpTable;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
@@ -86,7 +88,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private NetworkMonitor networkMonitor = null;
 
     private int K = 5;
-    private RoutesMap routesMap = new RoutesMap(); 
+    private RoutesMap routesMap = new RoutesMap();
+    private ArpTable arpTable = new ArpTable();
+    
 
     void setDataPacketService(IDataPacketService s) {
         this.dataPacketService = s;
@@ -294,9 +298,13 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         flowToHost(srcMAC, src.getnodeConnector());
                         flowToHost(dstMAC, dst.getnodeConnector());
                         
-                        logger.info("{} at {}, {} at {}",
-                                srcIP, src.getnodeconnectorNode().getNodeIDString(),
-                                dstIP, dst.getnodeconnectorNode().getNodeIDString());
+                        logger.info("{} () at {}",
+                                srcIP, Utils.mac2str(srcMAC), src.getnodeconnectorNode().getNodeIDString());
+                        logger.info("{} () at {}",
+                                dstIP, Utils.mac2str(dstMAC), dst.getnodeconnectorNode().getNodeIDString());
+                        arpTable.put(BitBufferHelper.toNumber(srcMAC),srcIP.getHostAddress());
+                        arpTable.put(BitBufferHelper.toNumber(dstMAC),dstIP.getHostAddress());
+
                         logger.info("Looking for k-paths");
                         List<Route> routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),K));
                         
@@ -552,20 +560,29 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     ////////
     // ITEE
     ////////
+    @Override
     public NetworkMonitor getNetworkMonitor() {
         return networkMonitor;
     }
 
+    @Override
     public Set<HostNodeConnector> getAllHosts() {
         return hostTracker.getAllHosts();
     }
-    
+
+    @Override
     public Collection<Link> getLinks() {
         return networkMonitor.getLinks();
     }
-    
+
+    @Override
     public Collection<Device> getDevices() {
         return networkMonitor.getDevices();
+    }
+
+    @Override
+    public Collection<Route> getRoutes(String srcIP, String dstIP) {
+        return routesMap.getRoutes(arpTable.getMac(srcIP), arpTable.getMac(dstIP));
     }
 
 }

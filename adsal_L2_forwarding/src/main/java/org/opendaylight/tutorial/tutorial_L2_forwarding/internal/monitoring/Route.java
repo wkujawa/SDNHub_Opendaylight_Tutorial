@@ -6,11 +6,13 @@ public class Route implements Comparable<Route>{
     private Path<Device, Link> path;
     private boolean isActive = false;
     private long packetsDropped = 0;
-    private long freeBandwidth = 0;
+    private long availableBandwidth = 0;
+    private long bandwidth = 0;
     private long cost = 0;
     
     public Route(Path<Device, Link> p) {
         path = p;
+        setBandwitdh();
     }
 
     public Path<Device, Link> getPath() {
@@ -19,6 +21,7 @@ public class Route implements Comparable<Route>{
 
     public void setPath(Path<Device, Link> path) {
         this.path = path;
+        setBandwitdh();
     }
 
     public boolean isActive() {
@@ -44,17 +47,36 @@ public class Route implements Comparable<Route>{
     public void setCost(long cost) {
         this.cost = cost;
     }
-    
+
+    public long getAvailableBandwidth() {
+        return availableBandwidth;
+    }
+
+    private void setBandwitdh() {
+        for (Link link : path.getEdges()) {
+            bandwidth = Math.min(bandwidth,
+                    link.getBandwidth());
+        }
+    }
+
+    public long getBandwidth() {
+        return bandwidth;
+    }
+
+    public long getHops() {
+        return path.getHops();
+    }
+
     /**
      * Calculates and sets cost of path.
      */
     public void evaluate() {
-        freeBandwidth = Long.MAX_VALUE;
+        availableBandwidth = Long.MAX_VALUE;
         for (Link link : path.getEdges()) {
-            freeBandwidth = Math.min(freeBandwidth,
+            availableBandwidth = Math.min(availableBandwidth,
                     link.getBandwidth() - link.getUsage());
         }
-        cost = path.getHops() + Utils.MB*100 - freeBandwidth;
+        cost = path.getHops() + Utils.MB*100 - availableBandwidth;
     }
 
     @Override
@@ -65,7 +87,7 @@ public class Route implements Comparable<Route>{
     @Override
     public String toString() {
         return "Route [path=" + path + ", isActive=" + isActive
-                + ", packetsDropped=" + packetsDropped + ", cost=" + cost + ", freeBandwidth="+freeBandwidth+"]";
+                + ", packetsDropped=" + packetsDropped + ", cost=" + cost + ", availableBandwidth="+availableBandwidth+"]";
     }
 
 }
