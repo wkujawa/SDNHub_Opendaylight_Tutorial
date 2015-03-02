@@ -6,6 +6,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.GraphicsEnvironment;
 import java.awt.Paint;
 import java.awt.Stroke;
 import java.text.DecimalFormat;
@@ -54,10 +55,11 @@ public class NetworkMonitor {
     private IStatisticsManager mStatisticsManager = null;
     private ISwitchManager mSwitchManager = null;
 
-    private JFrame mFrame;
-    private Graph<Device, Link> mGraph;
-    private Layout<Device, Link> mVisualizer;
-    private VisualizationViewer<Device, Link> mVisualizationViewer;
+    /* Visualization works only when java.awt.headless = false*/
+    private JFrame mFrame = null;
+    private Graph<Device, Link> mGraph = null;
+    private Layout<Device, Link> mVisualizer = null;
+    private VisualizationViewer<Device, Link> mVisualizationViewer = null;
 
     DijkstraShortestPath<Device, Link> dijkstra = null;
     DijkstraKShortestPath<Device, Link> kDijkstra = null;
@@ -99,13 +101,15 @@ public class NetworkMonitor {
         mGraph = new UndirectedSparseMultigraph<Device, Link>();
         dijkstra = new DijkstraShortestPath<Device, Link>(mGraph, mTransformer);
         kDijkstra = new DijkstraKShortestPath<Device, Link>(mGraph);
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                initGraphView();
-            }
 
-        });
+        if (!GraphicsEnvironment.isHeadless()) {
+            SwingUtilities.invokeLater(new Runnable() {
+                @Override
+                public void run() {
+                    initGraphView();
+                }
+            });
+        }
 
         init();
     }
@@ -120,8 +124,10 @@ public class NetworkMonitor {
 
     public void stop() {
         mWorker.interrupt();
-        mFrame.setVisible(false);
-        mFrame.dispose();
+        if (!GraphicsEnvironment.isHeadless()) {
+            mFrame.setVisible(false);
+            mFrame.dispose();
+        }
     }
 
     private void initGraphView() {
@@ -241,21 +247,24 @@ public class NetworkMonitor {
                 return false;
             }
         });
-
-        mFrame = new JFrame("NetworkMonitor");
-        mFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        mFrame.getContentPane().add(mVisualizationViewer);
-        mFrame.pack();
-        mFrame.setVisible(true);
+        if (!GraphicsEnvironment.isHeadless()) {
+            mFrame = new JFrame("NetworkMonitor");
+            mFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            mFrame.getContentPane().add(mVisualizationViewer);
+            mFrame.pack();
+            mFrame.setVisible(true);
+        }
     }
 
     private void repaint() {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                mVisualizationViewer.repaint();
-            }
-        });
+        if (!GraphicsEnvironment.isHeadless()) {
+            SwingUtilities.invokeLater(new Runnable() {
+                @Override
+                public void run() {
+                    mVisualizationViewer.repaint();
+                }
+            });
+        }
     }
 
     /**
