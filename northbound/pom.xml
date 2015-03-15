@@ -9,7 +9,7 @@
   </parent>
 
   <artifactId>tee.northbound</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>0.5.0-SNAPSHOT</version>
   <packaging>bundle</packaging>
   <dependencies>
     <dependency>

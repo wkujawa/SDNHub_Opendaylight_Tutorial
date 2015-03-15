@@ -34,6 +34,7 @@
     <sdnhub.of_plugins.version>0.1.0-SNAPSHOT</sdnhub.of_plugins.version>
     <brandfragment.version>0.1.0-SNAPSHOT</brandfragment.version>
     <adsal_L2_forwarding.version>0.5.0-SNAPSHOT</adsal_L2_forwarding.version>
+    <tee.northbound.version>0.5.0-SNAPSHOT</tee.northbound.version>
     <mdsal_L2_forwarding.version>0.1.0-SNAPSHOT</mdsal_L2_forwarding.version>
     <plugin_exercise.version>0.1.0-SNAPSHOT</plugin_exercise.version>
     <feature.adsal-tutorial.version>1.0.0-SNAPSHOT</feature.adsal-tutorial.version>

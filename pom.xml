@@ -17,6 +17,7 @@
   <modules>
     <module>commons/parent</module>
     <module>adsal_L2_forwarding</module>
+    <module>northbound</module>
     <module>mdsal_L2_forwarding</module>
     <module>plugin_exercise</module>
     <module>distribution/opendaylight-osgi-adsal</module>
