@@ -5,14 +5,17 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.opendaylight.controller.sal.packet.BitBufferHelper;
 
 public class RoutesMap {
     private Map<Long, Map<Long, List<Route>>> routesMap;
+    private Map<UUID, Route> routeByUUID;
 
     public RoutesMap() {
         routesMap = new HashMap<Long, Map<Long,List<Route>>>();
+        routeByUUID = new HashMap<UUID, Route>();
     }
 
     public List<Route> getRoutes(byte[] srcMAC, byte[] dstMAC) {
@@ -55,6 +58,10 @@ public class RoutesMap {
         return routes.get(0);
     }
 
+    public Route getRouteByUUID(UUID id) {
+        return routeByUUID.get(id);
+    }
+
     public void addRoutes(List<Route> routes, byte[] srcMAC, byte[] dstMAC) {
         long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
         long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
@@ -68,6 +75,10 @@ public class RoutesMap {
         srcMap.put(srcMAC, routes);
         routesMap.put(srcMAC, dstMap);
         routesMap.put(dstMAC, srcMap);
+        // Mapping by UUIDs
+        for (Route route : routes) {
+            routeByUUID.put(route.getId(), route);
+        }
     }
 
     public void removeRoutes(byte[] srcMAC, byte[] dstMAC) {
@@ -80,9 +91,21 @@ public class RoutesMap {
         Map<Long, List<Route>> srcMap = routesMap.get(srcMAC);
         Map<Long, List<Route>> dstMap = routesMap.get(srcMAC);
         if (srcMap != null) {
+            // Removing from by UUID map
+            for(List<Route> routes :srcMap.values()) {
+                for (Route route: routes) {
+                    routeByUUID.remove(route.getId());
+                }
+            }
             srcMap.remove(dstMAC);
         }
         if (dstMap != null) {
+            // Removing from by UUID map
+            for(List<Route> routes :dstMap.values()) {
+                for (Route route: routes) {
+                    routeByUUID.remove(route.getId());
+                }
+            }
             dstMap.remove(srcMAC);
         }
     }

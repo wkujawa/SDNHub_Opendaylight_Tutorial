@@ -3,6 +3,7 @@ package org.opendaylight.controller.tee.northbound;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -84,6 +85,18 @@ public class TEENorthbound {
         ITEE tee = getTEE();
         System.out.println("NB :: "+srcIP+" to "+dstIP);
         return tee.getRoutes(srcIP, dstIP);
+    }
+
+    @Path("/move/{fromRoute}/{flow}/{toRoute}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @GET
+    public void moveFlow(
+            @PathParam("fromRoute") String fromRoute,
+            @PathParam("flow") String flow,
+            @PathParam("toRoute") String toRoute) {
+        ITEE tee = getTEE();
+        System.out.println("NB :: move flow: "+ flow +" from "+fromRoute+" to "+toRoute);
+        tee.moveFlow(UUID.fromString(fromRoute), UUID.fromString(flow), UUID.fromString(toRoute));
     }
 
     private ITEE getTEE() {
