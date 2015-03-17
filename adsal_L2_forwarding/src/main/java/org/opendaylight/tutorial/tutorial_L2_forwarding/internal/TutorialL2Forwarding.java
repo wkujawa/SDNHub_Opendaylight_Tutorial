@@ -20,6 +20,7 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +64,7 @@ import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.ArpTable;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.LogicalFlow;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.RoutesMap;
@@ -322,6 +324,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         routesMap.addRoutes(routes, srcMAC, dstMAC);
                         Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
                         bestRoute.setActive(true);
+                        bestRoute.addFlow(new LogicalFlow(makeMatch((Ethernet)packet, false)));
+                        bestRoute.addFlow(new LogicalFlow(makeMatch((Ethernet)packet, true)));
+                        //TODO make method for programming that will take Route and packet as args
 
                         logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
                         for (Route route : routes) {
@@ -406,18 +411,22 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
     private boolean flowS2S(Ethernet ethpacket,
             NodeConnector incoming_connector, NodeConnector outgoing_connector) {
-        byte[] srcMAC = ethpacket.getSourceMACAddress();
-        byte[] dstMAC = ethpacket.getDestinationMACAddress();
-
-        return (programFlow(incoming_connector, srcMAC, dstMAC) &&
-                programFlow(outgoing_connector, dstMAC, srcMAC));
+        return (programFlow(incoming_connector, ethpacket, false) &&
+                programFlow(outgoing_connector, ethpacket, true));
     }
 
-    private boolean programFlow(NodeConnector connector, byte[] srcMAC, byte[] dstMAC) {
+    private Match makeMatch(Ethernet ethpacket, boolean reversed) {
         Match match = new Match();
+        byte[] srcMAC = !reversed ? ethpacket.getSourceMACAddress() : ethpacket.getDestinationMACAddress();
+        byte[] dstMAC = !reversed ? ethpacket.getDestinationMACAddress() : ethpacket.getSourceMACAddress();
+
         match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
+        return match;
+    }
 
+    private boolean programFlow(NodeConnector connector, Ethernet ethpacket, boolean reversed) {
+        Match match = makeMatch(ethpacket, reversed);
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
 
@@ -580,7 +589,19 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
     @Override
     public Collection<Route> getRoutes(String srcIP, String dstIP) {
-        return routesMap.getRoutes(arpTable.getMac(srcIP), arpTable.getMac(dstIP));
+        Long srcMac = arpTable.getMac(srcIP);
+        Long dstMac = arpTable.getMac(dstIP);
+        Collection<Route> routes = null;
+
+        if (srcMac != null && dstMac != null) {
+            routes = routesMap.getRoutes(srcMac, dstMac);
+        }
+
+        if (routes == null) {
+            return new LinkedList<Route>();
+        } else {
+            return routes;
+        }
     }
 
 }

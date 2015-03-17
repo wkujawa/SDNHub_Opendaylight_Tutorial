@@ -20,7 +20,7 @@ public class Path<V,E> implements Comparable<Path<V,E>> {
         vertices = new ArrayList<V>();
         edges = new ArrayList<E>();
         vertices.add(v);
-        hops = 0;
+        hops = 1;
     }
 
     public void add(V v, E e) {

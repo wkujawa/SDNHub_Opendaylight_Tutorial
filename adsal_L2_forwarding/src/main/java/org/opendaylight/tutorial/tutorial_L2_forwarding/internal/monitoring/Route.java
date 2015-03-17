@@ -1,7 +1,17 @@
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.UUID;
+
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 
+/**
+ * Class representing route between two hosts. Identified by UUID.
+ *
+ * @author Wiktor Kujawa
+ *
+ */
 public class Route implements Comparable<Route>{
     private Path<Device, Link> path;
     private boolean isActive = false;
@@ -9,8 +19,11 @@ public class Route implements Comparable<Route>{
     private long availableBandwidth = 0;
     private long bandwidth = 0;
     private long cost = 0;
+    private final UUID id;
+    private Collection<LogicalFlow> flows = new LinkedList<LogicalFlow>();
 
     public Route(Path<Device, Link> p) {
+        id = UUID.randomUUID();
         path = p;
         setBandwitdh();
     }
@@ -65,6 +78,22 @@ public class Route implements Comparable<Route>{
 
     public long getHops() {
         return path.getHops();
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void addFlow(LogicalFlow flow) {
+        flows.add(flow);
+    }
+
+    public void removeFlow(LogicalFlow flow) {
+        flows.remove(flow);
+    }
+
+    public Collection<LogicalFlow> getFlows() {
+        return flows;
     }
 
     /**
