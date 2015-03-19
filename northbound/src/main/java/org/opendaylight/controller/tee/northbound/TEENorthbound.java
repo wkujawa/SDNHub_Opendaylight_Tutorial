@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import javax.ws.rs.GET;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -89,14 +90,18 @@ public class TEENorthbound {
 
     @Path("/move/{fromRoute}/{flow}/{toRoute}")
     @Produces(MediaType.APPLICATION_JSON)
-    @GET
+    @PUT
     public void moveFlow(
             @PathParam("fromRoute") String fromRoute,
             @PathParam("flow") String flow,
             @PathParam("toRoute") String toRoute) {
         ITEE tee = getTEE();
         System.out.println("NB :: move flow: "+ flow +" from "+fromRoute+" to "+toRoute);
-        tee.moveFlow(UUID.fromString(fromRoute), UUID.fromString(flow), UUID.fromString(toRoute));
+        if (tee.moveFlow(UUID.fromString(fromRoute), UUID.fromString(flow), UUID.fromString(toRoute))) {
+            Response.ok(); // Flow moved
+        } else {
+            Response.serverError(); // Flow not moved - wrong input
+        }
     }
 
     private ITEE getTEE() {

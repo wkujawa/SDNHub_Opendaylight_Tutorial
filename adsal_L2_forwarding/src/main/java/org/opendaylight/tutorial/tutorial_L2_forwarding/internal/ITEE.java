@@ -28,5 +28,5 @@ public interface ITEE {
 
     public Collection<Route> getRoutes(String srcIP, String dstIP);
 
-    public void moveFlow(UUID fromRoute, UUID flow, UUID toRoute);
+    public boolean moveFlow(UUID fromRoute, UUID flow, UUID toRoute); //TODO error handling
 }
