@@ -389,6 +389,15 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         return programRoute(match, route);
     }
 
+    /**
+     * Programs nodes on route to handle flows with given match.
+     * Programming from destination node to source node in order to
+     * seamlessly move flows and not "loose" packets.
+     *
+     * @param match - match for flows to be programmed
+     * @param route - route to be programmed for given match
+     * @return
+     */
     private boolean programRoute(Match match, Route route) {
         byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
         byte[] dstMac = (byte[]) match.getField(MatchType.DL_DST).getValue();
@@ -396,7 +405,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         HostNodeConnector dstConnector = getHostNodeConnectorByMac(dstMac);
 
         Node pathFirstNode = route.getPath().getSource().getNode();
-        Node previousNode = null; // Helps keep links in good direction
+        Node currentNode = null; // Node common between previous and current link
+        NodeConnector secondNodeConnector = null;  // Connector of second node
         boolean reverse = false;
         ListIterator<Link> listIterator = null;
         List<Link> links = route.getPath().getEdges();
@@ -412,24 +422,28 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         if (pathFirstNode.equals(srcConnector.getnodeconnectorNode())) {
             reverse = true;
             listIterator = links.listIterator(links.size());
-            previousNode = dstConnector.getnodeconnectorNode();
         } else {
             reverse = false;
             listIterator = links.listIterator();
-            previousNode = srcConnector.getnodeconnectorNode();
         }
 
+        // Exploring path from the end
+        currentNode = dstConnector.getnodeconnectorNode();
         boolean ret = true;
         while(reverse ? listIterator.hasPrevious() : listIterator.hasNext()) {
             Link link = reverse ? listIterator.previous() : listIterator.next();
             logger.info("Link {} -> {}", link.getSourceConnector(), link.getDestinationConnector());
-            if (previousNode.equals(link.getSourceConnector().getNode())) {
-                ret &= programFlow(link.getDestinationConnector(), match);
-                previousNode = link.getDestinationConnector().getNode();
+
+            if (currentNode.equals(link.getSourceConnector().getNode())) {
+                secondNodeConnector = link.getDestinationConnector();
             } else {
-                ret &= programFlow(link.getSourceConnector(), match);
-                previousNode = link.getSourceConnector().getNode();
+                secondNodeConnector = link.getSourceConnector();
             }
+
+            ret &= programFlow(secondNodeConnector, match);
+
+            // Second node will be in next link
+            currentNode = secondNodeConnector.getNode();
         }
 
         return ret;
