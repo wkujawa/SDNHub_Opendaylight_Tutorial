@@ -638,6 +638,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         }
     }
 
+    // TODO TODO change to remove flows from just from nodes that wheren't in old route
     private void removeOlderFlow(LogicalFlow logicalFlow, Route route) {
         Match match = logicalFlow.getMatch();
         route.removeFlow(logicalFlow);
@@ -682,10 +683,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
         byte[] dstMac = (byte[]) match.getField(MatchType.DL_DST).getValue();
         HostNodeConnector srcConnector = getHostNodeConnectorByMac(srcMac);
+        HostNodeConnector dstConnector = getHostNodeConnectorByMac(dstMac);
 
         Node pathFirstNode = route.getPath().getSource().getNode();
-        Node lastNode = null;
-        boolean reversed = false;
+        Node previousNode = null; // Helps keep links in good direction
+        boolean reverse = false;
         ListIterator<Link> listIterator = null;
         List<Link> links = route.getPath().getEdges();
 
@@ -696,24 +698,26 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     link.getDestinationConnector());
         }
 
-        lastNode = srcConnector.getnodeconnectorNode();
-        // Check if path has same direction as flow, else reverse path
-        if (pathFirstNode.equals(lastNode)) {
-            listIterator = links.listIterator();
-        } else {
-            reversed = true;
+        // Program in reverse order than flow so next switches know how to handle packets
+        if (pathFirstNode.equals(srcConnector.getnodeconnectorNode())) {
+            reverse = true;
             listIterator = links.listIterator(links.size());
+            previousNode = dstConnector.getnodeconnectorNode();
+        } else {
+            reverse = false;
+            listIterator = links.listIterator();
+            previousNode = srcConnector.getnodeconnectorNode();
         }
 
-        while(reversed ? listIterator.hasPrevious() : listIterator.hasNext()) {
-            Link link = reversed ? listIterator.previous() : listIterator.next();
+        while(reverse ? listIterator.hasPrevious() : listIterator.hasNext()) {
+            Link link = reverse ? listIterator.previous() : listIterator.next();
             logger.info("Link {} -> {}", link.getSourceConnector(), link.getDestinationConnector());
-            if (lastNode.equals(link.getSourceConnector().getNode())) {
-                programFlow(link.getSourceConnector(), match);
-                lastNode = link.getDestinationConnector().getNode();
+            if (previousNode.equals(link.getSourceConnector().getNode())) {
+                programFlow(link.getDestinationConnector(), match);
+                previousNode = link.getDestinationConnector().getNode();
             } else {
-                programFlow( link.getDestinationConnector(), match);
-                lastNode = link.getSourceConnector().getNode();
+                programFlow(link.getSourceConnector(), match);
+                previousNode = link.getSourceConnector().getNode();
             }
         }
     }
