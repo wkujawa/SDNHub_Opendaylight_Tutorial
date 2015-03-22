@@ -97,6 +97,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private RoutesMap routesMap = new RoutesMap();
     private ArpTable arpTable = new ArpTable();
 
+    private static final short MOVING_TIMEOUT = 5; // idle timeout for flow to be removed
+
     void setDataPacketService(IDataPacketService s) {
         this.dataPacketService = s;
     }
@@ -523,14 +525,18 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         }
     }
 
-    // TODO TODO change to remove flows from just from nodes that wheren't in old route
     /**
      * Remove flows from logicalFlow that could be left after moving it from oldRoute to newRoute.
      * When new flow is programmed on node, flow with same Match will be updated.
      * So old flows are only on nodes from oldRoute that are not in newRoute.
      *
+     * Flow are removed with delay to ensure that all packets have left old route.
+     * This is done by setting short idle time to flow instead of just removing that flow.
+     *
+     * Removal is done in reversed order.
+     *
      * @param logicalFlow - flow to remove
-     * @param oldRoute  - old route - logical flowa was moved from it
+     * @param oldRoute  - old route - logical flow was moved from it
      * @param newRoute - new route - logical flow was moved to it
      * @return
      */
@@ -540,20 +546,35 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         List<Device> oldDevices = oldRoute.getPath().getVertices();
         List<Device> newDevices = newRoute.getPath().getVertices();
 
+        byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
+        HostNodeConnector srcConnector = getHostNodeConnectorByMac(srcMac);
+
+        boolean reverse = false;
+        ListIterator<Device> listIterator = null;
+        if (oldRoute.getPath().getSource().getNode().equals(srcConnector.getnodeconnectorNode())) {
+            reverse = true;
+            listIterator = oldDevices.listIterator(oldDevices.size());
+        } else {
+            reverse = false;
+            listIterator = oldDevices.listIterator();
+        }
+
         boolean ret = true;
-        for (Device device: oldDevices) {
+        while(reverse ? listIterator.hasPrevious() : listIterator.hasNext()) {
+            Device device = reverse ? listIterator.previous() : listIterator.next();
             if (!newDevices.contains(device)) {
                 Flow flowToRemove = null;
                 for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
                     Flow flow = flowOnNode.getFlow();
                     if (match.equals(flow.getMatch())) {
                         flowToRemove = flowOnNode.getFlow();
-                        logger.info("Removing flow {}", flowToRemove);
-                        Status status = programmer.removeFlow(device.getNode(), flowToRemove);
+                        flowToRemove.setIdleTimeout(MOVING_TIMEOUT);
+                        logger.info("Setting idle timeout {} s for {}", MOVING_TIMEOUT, flowToRemove);
+                        Status status = programmer.addFlow(device.getNode(), flowToRemove);
 
                         if (!status.isSuccess()) {
                             logger.warn(
-                                    "SDN Plugin failed to remove the flow: {}. The failure is: {}",
+                                    "SDN Plugin failed to modify the flow: {}. The failure is: {}",
                                     flowToRemove, status.getDescription());
                             ret = false;
                         }
