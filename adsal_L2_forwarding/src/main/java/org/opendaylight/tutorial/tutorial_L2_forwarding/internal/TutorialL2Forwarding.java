@@ -514,39 +514,48 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     }
 
     // TODO TODO change to remove flows from just from nodes that wheren't in old route
-    private boolean removeOlderFlow(LogicalFlow logicalFlow, Route route) {
+    /**
+     * Remove flows from logicalFlow that could be left after moving it from oldRoute to newRoute.
+     * When new flow is programmed on node, flow with same Match will be updated.
+     * So old flows are only on nodes from oldRoute that are not in newRoute.
+     *
+     * @param logicalFlow - flow to remove
+     * @param oldRoute  - old route - logical flowa was moved from it
+     * @param newRoute - new route - logical flow was moved to it
+     * @return
+     */
+    private boolean removeOlderFlow(LogicalFlow logicalFlow, Route oldRoute, Route newRoute) {
         Match match = logicalFlow.getMatch();
-        route.removeFlow(logicalFlow);
-        List<Link> path = route.getPath().getEdges();
-        for (Link link : path) {
-            List<NodeConnector> connectors = new ArrayList<NodeConnector>();
-            connectors.add(link.getSourceConnector());
-            connectors.add(link.getDestinationConnector());
-            for (NodeConnector connector : connectors) {
-                FlowOnNode flowOnNodeToRemove = null;
-                for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
+        oldRoute.removeFlow(logicalFlow);
+        List<Device> oldDevices = oldRoute.getPath().getVertices();
+        List<Device> newDevices = newRoute.getPath().getVertices();
+
+        boolean ret = true;
+        for (Device device: oldDevices) {
+            if (!newDevices.contains(device)) {
+                Flow flowToRemove = null;
+                for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
                     Flow flow = flowOnNode.getFlow();
                     if (match.equals(flow.getMatch())) {
-                        // Find older matching flow
-                        if (flowOnNodeToRemove == null) {
-                            flowOnNodeToRemove = flowOnNode;
-                        } else {
-                            if (flowOnNode.getDurationSeconds() > flowOnNodeToRemove.getDurationSeconds()) {
-                                flowOnNodeToRemove = flowOnNode;
-                            }
-                            Flow flowToRemove = flowOnNodeToRemove.getFlow();
-                            logger.info("Removing flow {}", flowToRemove);
-                            programmer.removeFlow(connector.getNode(), flowToRemove);
+                        flowToRemove = flowOnNode.getFlow();
+                        logger.info("Removing flow {}", flowToRemove);
+                        Status status = programmer.removeFlow(device.getNode(), flowToRemove);
+
+                        if (!status.isSuccess()) {
+                            logger.warn(
+                                    "SDN Plugin failed to remove the flow: {}. The failure is: {}",
+                                    flowToRemove, status.getDescription());
+                            ret = false;
                         }
                     }
                 }
-                if (flowOnNodeToRemove == null) {
-                    logger.error("Didn't find flow for match: {} on {}", match, connector.getNode());
-                    return false;
+                if (flowToRemove == null) {
+                    logger.error("Didn't find flow for match: {} on {}", match, device.getNode());
+                    ret = false;
                 }
             }
         }
-        return true;
+        return ret;
     }
 
     private void moveFlowEmergency(NodeConnector connector) {
@@ -735,7 +744,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             logger.info("1. Programming flow");
             boolean ret =programRoute(flowToMove, dstRoute);
             logger.info("2. Removing old flow");
-            ret &= removeOlderFlow(flowToMove, srcRoute);
+            ret &= removeOlderFlow(flowToMove, srcRoute, dstRoute);
             return ret;
         } else {
             logger.error("Could't find flow "+flow);
