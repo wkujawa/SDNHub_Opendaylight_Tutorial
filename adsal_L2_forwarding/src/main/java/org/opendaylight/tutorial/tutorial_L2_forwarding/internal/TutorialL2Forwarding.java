@@ -235,6 +235,15 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     ////////////////////
     // IListenDataPacket
     ////////////////////
+    /**
+     * TODO describe what is done
+     * When new packet arrives between host H1 and host H2 k-shortest path are found.
+     * Same k-paths are added for H1->H2 and H2->H1.
+     * Best route from k-path is chosen and programmed for both directions using match
+     * created by @see makeMatch(). For each direction logical flow is created and assigned
+     * to best route. Logical flow consist of unique id and match made by makeMatch that will
+     * be enough to manage that flow in future.
+     */
     @Override
     public PacketResult receiveDataPacket(RawPacket inPkt) {
         if (inPkt == null) {
@@ -310,6 +319,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
 
                         routesMap.addRoutes(routes, srcMAC, dstMAC);
+                        routesMap.addRoutes(routes, dstMAC, srcMAC);
                         Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
                         programRouteBidirect((Ethernet) packet, bestRoute);
 
@@ -558,6 +568,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         return ret;
     }
 
+    //TODO update
     private void moveFlowEmergency(NodeConnector connector) {
         for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
             Flow flow = flowOnNode.getFlow();
