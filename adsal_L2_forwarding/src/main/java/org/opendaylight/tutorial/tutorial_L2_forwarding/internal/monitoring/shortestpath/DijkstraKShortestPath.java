@@ -12,9 +12,9 @@ public class DijkstraKShortestPath<V,E> {
     protected Hypergraph<V,E> g;
 
     /**
-     * <p>Creates an instance of <code>DijkstraKShortestPath</code> for 
+     * <p>Creates an instance of <code>DijkstraKShortestPath</code> for
      * the specified graph
-     * 
+     *
      * @param g     the graph on which distances will be calculated
 
      */
@@ -22,7 +22,6 @@ public class DijkstraKShortestPath<V,E> {
         this.g = g;
     }
 
-    
     public List<Path<V,E>> getPath(V source, V target, Integer K)
     {
         Map<V,Integer> count =  new HashMap<V, Integer>();
@@ -37,11 +36,11 @@ public class DijkstraKShortestPath<V,E> {
             V u = Pu.getTarget();
             Integer countU = count.get(u);
             count.put(u, countU+1);
-            
+
             if (u.equals(target)) {
                 P.add(Pu);
             }
-            
+
             if (countU <= K) {
                 for (E e : g.getIncidentEdges(u)) {
                     for (V v: g.getIncidentVertices(e)) {
@@ -57,9 +56,9 @@ public class DijkstraKShortestPath<V,E> {
                     }
                 }
             }
-            
+
         }
-        
+
         return P;
     }
 }

@@ -7,14 +7,13 @@ public class FlowStatistics {
     private long mUsage;
     private long mByteCount;
     private long mTimeStamp;
-    
-    
+
     public FlowStatistics(Flow flow, long byteCount) {
         mFlow = flow;
         mByteCount = byteCount;
         mTimeStamp = System.currentTimeMillis();
     }
-    
+
     protected void updateStatistics(long timestamp, long byteCount) {
         if (getTimeDiffSeconds(timestamp) == 0) {
             mUsage = 0;
@@ -24,7 +23,7 @@ public class FlowStatistics {
         mTimeStamp = timestamp;
         mByteCount = byteCount;
     }
-    
+
     public long getUsage() {
         return mUsage*8; //bites
     }
@@ -32,7 +31,7 @@ public class FlowStatistics {
     public Flow getFlow() {
         return mFlow;
     }
-    
+
     private double getTimeDiffSeconds(long timestamp) {
         return (timestamp - mTimeStamp) / 1000.0;
     }

@@ -19,8 +19,13 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -40,6 +45,7 @@ import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.match.Match;
 import org.opendaylight.controller.sal.match.MatchField;
 import org.opendaylight.controller.sal.match.MatchType;
+import org.opendaylight.controller.sal.packet.BitBufferHelper;
 import org.opendaylight.controller.sal.packet.Ethernet;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
@@ -57,8 +63,10 @@ import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.ArpTable;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.LogicalFlow;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.RoutesMap;
@@ -70,8 +78,11 @@ import org.osgi.framework.FrameworkUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.net.InetAddresses;
+
 public class TutorialL2Forwarding implements IListenDataPacket,
-        ITopologyManagerAware, IfNewHostNotify, IInventoryListener {
+        ITopologyManagerAware, IfNewHostNotify, IInventoryListener,
+        ITEE{
     private static final Logger logger = LoggerFactory
             .getLogger(TutorialL2Forwarding.class);
     private ISwitchManager switchManager = null;
@@ -83,7 +94,10 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private NetworkMonitor networkMonitor = null;
 
     private int K = 5;
-    private RoutesMap routesMap = new RoutesMap(); 
+    private RoutesMap routesMap = new RoutesMap();
+    private ArpTable arpTable = new ArpTable();
+
+    private static final short MOVING_TIMEOUT = 5; // idle timeout for flow to be removed
 
     void setDataPacketService(IDataPacketService s) {
         this.dataPacketService = s;
@@ -95,11 +109,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         }
     }
 
-    public void setFlowProgrammerService(IFlowProgrammerService s) {
+    void setFlowProgrammerService(IFlowProgrammerService s) {
         this.programmer = s;
     }
 
-    public void unsetFlowProgrammerService(IFlowProgrammerService s) {
+    void unsetFlowProgrammerService(IFlowProgrammerService s) {
         if (this.programmer == s) {
             this.programmer = null;
         }
@@ -220,31 +234,18 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         logger.info("Stopped");
     }
 
-    void moveFlowEmergency(NodeConnector connector) {
-        for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
-            Flow flow = flowOnNode.getFlow();
-            for (Action action : flow.getActions()) {
-                if (action.equals(new Output(connector))) {
-                    logger.info("Moving flow {}", flow);
-                    Match match = flow.getMatch();
-                    MatchField srcField = match.getField(MatchType.DL_SRC);
-                    MatchField dstField = match.getField(MatchType.DL_DST);
-                    logger.info("Removing {} <-> {}", srcField.getValue(), dstField.getValue());
-                    clearRoute((byte[])srcField.getValue(), (byte[])dstField.getValue());
-                    //Remove all routes and find again K shortest paths (Will be done on Packet IN).
-                    //Of course it is not optimal solution. //TODO
-                    routesMap.removeRoutes((byte[])srcField.getValue(), (byte[])dstField.getValue());
-
-                    // It will be programmed in standard way in reaction to PacketIn
-                    continue;
-                }
-            }
-        }
-    }
-
     ////////////////////
     // IListenDataPacket
     ////////////////////
+    /**
+     * TODO describe what is done
+     * When new packet arrives between host H1 and host H2 k-shortest path are found.
+     * Same k-paths are added for H1->H2 and H2->H1.
+     * Best route from k-path is chosen and programmed for both directions using match
+     * created by @see makeMatch(). For each direction logical flow is created and assigned
+     * to best route. Logical flow consist of unique id and match made by makeMatch that will
+     * be enough to manage that flow in future.
+     */
     @Override
     public PacketResult receiveDataPacket(RawPacket inPkt) {
         if (inPkt == null) {
@@ -252,7 +253,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         }
 
         logger.debug("Got packet {}", inPkt.toString());
-        
+
         Packet packet = this.dataPacketService.decodeDataPacket(inPkt);
 
         if (!(packet instanceof Ethernet)) {
@@ -274,7 +275,13 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         Utils.mac2str(dstMAC), inPkt.getIncomingNodeConnector()
                                 .getNodeConnectorIDString());
                 logger.info("Ethtype: "+((Ethernet) packet).getEtherType());
-                
+
+                if (!routesMap.getRoutes(srcMAC, dstMAC).isEmpty()) {
+                    logger.error("Route should be already programmed. Loosing packet.");
+                    //TODO Send it with Packet Out just in case
+                    return PacketResult.IGNORED;
+                }
+
                 if (payload instanceof IPv4) {
                     InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
                     InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
@@ -290,14 +297,18 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         // TODO do not duplicate
                         flowToHost(srcMAC, src.getnodeConnector());
                         flowToHost(dstMAC, dst.getnodeConnector());
-                        
-                        logger.info("{} at {}, {} at {}",
-                                srcIP, src.getnodeconnectorNode().getNodeIDString(),
-                                dstIP, dst.getnodeconnectorNode().getNodeIDString());
+
+                        logger.info("{} () at {}",
+                                srcIP, Utils.mac2str(srcMAC), src.getnodeconnectorNode().getNodeIDString());
+                        logger.info("{} () at {}",
+                                dstIP, Utils.mac2str(dstMAC), dst.getnodeconnectorNode().getNodeIDString());
+                        arpTable.put(BitBufferHelper.toNumber(srcMAC),srcIP.getHostAddress());
+                        arpTable.put(BitBufferHelper.toNumber(dstMAC),dstIP.getHostAddress());
+
                         logger.info("Looking for k-paths");
                         List<Route> routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),K));
-                        
-                        
+
+
                         logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
                         for (Route route : routes) {
                             logger.info("Path:");
@@ -307,50 +318,22 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                             logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
                         }
                         logger.info("------------------------");
-                        
-                        
+
+
                         routesMap.addRoutes(routes, srcMAC, dstMAC);
+                        routesMap.addRoutes(routes, dstMAC, srcMAC);
                         Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
-                        bestRoute.setActive(true);
-                        
-                        logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
-                        for (Route route : routes) {
-                            logger.info("Path:");
-                            for (Device device : route.getPath().getVertices()) {
-                                logger.info("Device: "+device);
-                            }
-                            logger.info("Cost: {} PDR: {} Active: {}",route.getCost(),route.getPacketsDropped(), route.isActive());
-                        }
-                        logger.info("------------------------");
-                        
-                        List<Link> path = bestRoute.getPath().getEdges();
-                        int i = 0;
-                        
-                        // Graph is undirected so we need to figure out which connector is for source and which for destination
-                        Node lastNode = src.getnodeconnectorNode();
-                        
-                        for (Link link: path) {
-                            logger.info("Path "+i+" : "+link.getSourceConnector().getNode().getNodeIDString()+" - "
-                                        +link.getDestinationConnector().getNode().getNodeIDString()+" "+link.toString());
-                            
-                            if (lastNode.equals(link.getSourceConnector().getNode())) {
-                                flowS2S((Ethernet)packet, link.getSourceConnector(), link.getDestinationConnector());
-                                lastNode = link.getDestinationConnector().getNode();
-                            } else {
-                                flowS2S((Ethernet)packet, link.getDestinationConnector(), link.getSourceConnector());
-                                lastNode = link.getSourceConnector().getNode();
-                            }
-                        }
+                        programRouteBidirect((Ethernet) packet, bestRoute);
 
                         // TODO first packet still is lost
                         // is it to late ?
                         // is it to fast ?
                         // wrong node connector ? send to all host node connectors
                         try {
-                            Thread.sleep(2000);
                             RawPacket rawPacket = new RawPacket(inPkt);
-                            rawPacket.setOutgoingNodeConnector(dst.getnodeConnector());
-                            logger.info("Sending Packet: {} {}",rawPacket.getPacketData(), rawPacket.getOutgoingNodeConnector());
+                            rawPacket.setOutgoingNodeConnector(dst.getnodeConnector()); //TODO is it ok, shouldn't take that from route?
+                            logger.info("Sending Packet: {}",
+                                    rawPacket.getOutgoingNodeConnector());
                             dataPacketService.transmitDataPacket(rawPacket);
                         } catch (ConstructionException e) {
                             logger.error("Cannot construct packet: {}",e);
@@ -364,23 +347,41 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 } else {
                     logger.info("Not IPV4");
                 }
-            } 
-            
+            }
+
             return PacketResult.IGNORED;
         }
+    }
+
+    ////////////////////
+    // Flows programming
+    ////////////////////
+    /**
+     * Programs flows on route to handle given packet in both ways.
+     * Creates logical flows for it.
+     *
+     * @param ethpacket - match will be made based on that
+     * @param route - route to program
+     * @return
+     */
+    private boolean programRouteBidirect(Ethernet ethpacket, Route route) {
+        boolean ret1 = programRoute(new LogicalFlow(makeMatch(ethpacket, false)), route);
+        boolean ret2 =programRoute(new LogicalFlow(makeMatch(ethpacket, true)), route);
+
+        return ret1 && ret2;
     }
 
     private boolean flowToHost(byte [] mac, NodeConnector connector) {
         Match match = new Match();
         match.setField(new MatchField(MatchType.DL_DST, mac.clone()));
-        
+
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
 
         Flow f = new Flow(match, actions);
-        
+
         logger.info("Programming flow to {} : {}", mac, f);
-        
+
         Node node = connector.getNode();
         Status status = programmer.addFlow(node, f);
 
@@ -393,25 +394,89 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             return true;
         }
     }
-    
-    private boolean flowS2S(Ethernet ethpacket,
-            NodeConnector incoming_connector, NodeConnector outgoing_connector) {
-        byte[] srcMAC = ethpacket.getSourceMACAddress();
-        byte[] dstMAC = ethpacket.getDestinationMACAddress();
-        
-        return (programFlow(incoming_connector, srcMAC, dstMAC) &&
-                programFlow(outgoing_connector, dstMAC, srcMAC));
+
+    private boolean programRoute(LogicalFlow logicalFlow, Route route) {
+        Match match = logicalFlow.getMatch();
+        route.addFlow(logicalFlow);
+        return programRoute(match, route);
     }
-    
-    private boolean programFlow(NodeConnector connector, byte[] srcMAC, byte[] dstMAC) {
+
+    /**
+     * Programs nodes on route to handle flows with given match.
+     * Programming from destination node to source node in order to
+     * seamlessly move flows and not "loose" packets.
+     *
+     * @param match - match for flows to be programmed
+     * @param route - route to be programmed for given match
+     * @return
+     */
+    private boolean programRoute(Match match, Route route) {
+        byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
+        byte[] dstMac = (byte[]) match.getField(MatchType.DL_DST).getValue();
+        HostNodeConnector srcConnector = getHostNodeConnectorByMac(srcMac);
+        HostNodeConnector dstConnector = getHostNodeConnectorByMac(dstMac);
+
+        Node pathFirstNode = route.getPath().getSource().getNode();
+        Node currentNode = null; // Node common between previous and current link
+        NodeConnector secondNodeConnector = null;  // Connector of second node
+        boolean reverse = false;
+        ListIterator<Link> listIterator = null;
+        List<Link> links = route.getPath().getEdges();
+
+        logger.info("Programming path from {} to {}", Utils.mac2str(srcMac), Utils.mac2str(dstMac));
+        logger.info("Route:");
+        for (Link link: links) {
+            logger.info("{} ->  {}", link.getSourceConnector(),
+                    link.getDestinationConnector());
+        }
+
+        // Program in reverse order than flow so next switches know how to handle packets
+        if (pathFirstNode.equals(srcConnector.getnodeconnectorNode())) {
+            reverse = true;
+            listIterator = links.listIterator(links.size());
+        } else {
+            reverse = false;
+            listIterator = links.listIterator();
+        }
+
+        // Exploring path from the end
+        currentNode = dstConnector.getnodeconnectorNode();
+        boolean ret = true;
+        while(reverse ? listIterator.hasPrevious() : listIterator.hasNext()) {
+            Link link = reverse ? listIterator.previous() : listIterator.next();
+            logger.info("Link {} -> {}", link.getSourceConnector(), link.getDestinationConnector());
+
+            if (currentNode.equals(link.getSourceConnector().getNode())) {
+                secondNodeConnector = link.getDestinationConnector();
+            } else {
+                secondNodeConnector = link.getSourceConnector();
+            }
+
+            ret &= programFlow(secondNodeConnector, match);
+
+            // Second node will be in next link
+            currentNode = secondNodeConnector.getNode();
+        }
+
+        return ret;
+    }
+
+    private Match makeMatch(Ethernet ethpacket, boolean reversed) {
         Match match = new Match();
+        byte[] srcMAC = !reversed ? ethpacket.getSourceMACAddress() : ethpacket.getDestinationMACAddress();
+        byte[] dstMAC = !reversed ? ethpacket.getDestinationMACAddress() : ethpacket.getSourceMACAddress();
+
         match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
+        return match;
+    }
 
+    private boolean programFlow(NodeConnector connector, Match match) {
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
 
         Flow f = new Flow(match, actions);
+        logger.info("Programming flow {} on {}", f, connector.getNode()); //TODO change to debug
 
         Status status = programmer.addFlow(connector.getNode(), f);
 
@@ -424,37 +489,135 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             return true;
         }
     }
-    
+
     private void clearRoute(byte[] srtMAC, byte[] dstMAC) {
         clearRouteOneWay(srtMAC, dstMAC);
         clearRouteOneWay(dstMAC, srtMAC);
     }
 
     private void clearRouteOneWay(byte[] srcMAC, byte[] dstMAC) {
-        List<Link> path = routesMap.getActiveRoute(srcMAC, dstMAC).getPath().getEdges();
-        for (Link link : path) {
-            List<NodeConnector> connectors = new ArrayList<NodeConnector>();
-            connectors.add(link.getSourceConnector());
-            connectors.add(link.getDestinationConnector());
-            for (NodeConnector connector : connectors) {
-                for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
-                    Flow flow = flowOnNode.getFlow();
-                    for (Action action : flow.getActions()) {
-                        if (action.equals(new Output(connector))) {
-                            logger.info("Matching output {}", flow);
-                            Match match = flow.getMatch();
-                            MatchField srcField = match.getField(MatchType.DL_SRC);
-                            MatchField dstField = match.getField(MatchType.DL_DST);
-                            if (srcField.equals(new MatchField(MatchType.DL_SRC, srcMAC.clone()))
-                                    && dstField.equals(new MatchField(MatchType.DL_DST, dstMAC.clone()))) {
-                                logger.info("Matching src and dst {}", flow);
-                                programmer.removeFlow(connector.getNode(), flow);
+        List<Route> routes = routesMap.getRoutes(srcMAC, dstMAC);
+        for (Route route : routes) {
+            List<Link> path = route.getPath().getEdges();
+            for (Link link : path) {
+                List<NodeConnector> connectors = new ArrayList<NodeConnector>();
+                connectors.add(link.getSourceConnector());
+                connectors.add(link.getDestinationConnector());
+                for (NodeConnector connector : connectors) {
+                    for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
+                        Flow flow = flowOnNode.getFlow();
+                        for (Action action : flow.getActions()) {
+                            if (action.equals(new Output(connector))) {
+                                logger.info("Matching output {}", flow);
+                                Match match = flow.getMatch();
+                                MatchField srcField = match.getField(MatchType.DL_SRC);
+                                MatchField dstField = match.getField(MatchType.DL_DST);
+                                if (srcField.equals(new MatchField(MatchType.DL_SRC, srcMAC.clone()))
+                                        && dstField.equals(new MatchField(MatchType.DL_DST, dstMAC.clone()))) {
+                                    logger.info("Matching src and dst {}", flow);
+                                    programmer.removeFlow(connector.getNode(), flow);
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Remove flows from logicalFlow that could be left after moving it from oldRoute to newRoute.
+     * When new flow is programmed on node, flow with same Match will be updated.
+     * So old flows are only on nodes from oldRoute that are not in newRoute.
+     *
+     * Flow are removed with delay to ensure that all packets have left old route.
+     * This is done by setting short idle time to flow instead of just removing that flow.
+     *
+     * Removal is done in reversed order.
+     *
+     * @param logicalFlow - flow to remove
+     * @param oldRoute  - old route - logical flow was moved from it
+     * @param newRoute - new route - logical flow was moved to it
+     * @return
+     */
+    private boolean removeOlderFlow(LogicalFlow logicalFlow, Route oldRoute, Route newRoute) {
+        Match match = logicalFlow.getMatch();
+        oldRoute.removeFlow(logicalFlow);
+        List<Device> oldDevices = oldRoute.getPath().getVertices();
+        List<Device> newDevices = newRoute.getPath().getVertices();
+
+        byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
+        HostNodeConnector srcConnector = getHostNodeConnectorByMac(srcMac);
+
+        boolean reverse = false;
+        ListIterator<Device> listIterator = null;
+        if (oldRoute.getPath().getSource().getNode().equals(srcConnector.getnodeconnectorNode())) {
+            reverse = true;
+            listIterator = oldDevices.listIterator(oldDevices.size());
+        } else {
+            reverse = false;
+            listIterator = oldDevices.listIterator();
+        }
+
+        boolean ret = true;
+        while(reverse ? listIterator.hasPrevious() : listIterator.hasNext()) {
+            Device device = reverse ? listIterator.previous() : listIterator.next();
+            if (!newDevices.contains(device)) {
+                Flow flowToRemove = null;
+                for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
+                    Flow flow = flowOnNode.getFlow();
+                    if (match.equals(flow.getMatch())) {
+                        flowToRemove = flowOnNode.getFlow();
+                        flowToRemove.setIdleTimeout(MOVING_TIMEOUT);
+                        logger.info("Setting idle timeout {} s for {}", MOVING_TIMEOUT, flowToRemove);
+                        Status status = programmer.addFlow(device.getNode(), flowToRemove);
+
+                        if (!status.isSuccess()) {
+                            logger.warn(
+                                    "SDN Plugin failed to modify the flow: {}. The failure is: {}",
+                                    flowToRemove, status.getDescription());
+                            ret = false;
+                        }
+                    }
+                }
+                if (flowToRemove == null) {
+                    logger.error("Didn't find flow for match: {} on {}", match, device.getNode());
+                    ret = false;
+                }
+            }
+        }
+        return ret;
+    }
+
+    //TODO update
+    private void moveFlowEmergency(NodeConnector connector) {
+        for(FlowOnNode flowOnNode : statisticsManager.getFlows(connector.getNode())) {
+            Flow flow = flowOnNode.getFlow();
+            for (Action action : flow.getActions()) {
+                if (action.equals(new Output(connector))) {
+                    logger.info("Moving flow {}", flow);
+                    Match match = flow.getMatch();
+                    MatchField srcField = match.getField(MatchType.DL_SRC);
+                    MatchField dstField = match.getField(MatchType.DL_DST);
+                    logger.info("Removing {} <-> {}", srcField.getValue(), dstField.getValue());
+                    clearRoute((byte[])srcField.getValue(), (byte[])dstField.getValue());
+                    //Remove all routes and find again K shortest paths (Will be done on Packet IN).
+                    //Of course it is not optimal solution. //TODO
+                    routesMap.removeRoutes((byte[])srcField.getValue(), (byte[])dstField.getValue());
+
+                    // It will be programmed in standard way in reaction to PacketIn
+                    continue;
+                }
+            }
+        }
+    }
+
+    ////////////////////////
+    // Utilities
+    ////////////////////////
+    private HostNodeConnector getHostNodeConnectorByMac(byte [] mac) {
+        String srcIP = arpTable.getIP(BitBufferHelper.toNumber(mac));
+        return hostTracker.hostFind(InetAddresses.forString(srcIP));
     }
 
     ////////////////////////
@@ -544,4 +707,81 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             Map<String, Property> arg2) {
         logger.info("notifyNodeConnector");
     }
+
+    ////////
+    // ITEE
+    ////////
+    @Override
+    public NetworkMonitor getNetworkMonitor() {
+        return networkMonitor;
+    }
+
+    @Override
+    public Set<HostNodeConnector> getAllHosts() {
+        return hostTracker.getAllHosts();
+    }
+
+    @Override
+    public Collection<Link> getLinks() {
+        return networkMonitor.getLinks();
+    }
+
+    @Override
+    public Collection<Device> getDevices() {
+        return networkMonitor.getDevices();
+    }
+
+    @Override
+    public Collection<Route> getRoutes(String srcIP, String dstIP) {
+        Long srcMac = arpTable.getMac(srcIP);
+        Long dstMac = arpTable.getMac(dstIP);
+        Collection<Route> routes = null;
+
+        if (srcMac != null && dstMac != null) {
+            routes = routesMap.getRoutes(srcMac, dstMac);
+        }
+
+        if (routes == null) {
+            return new LinkedList<Route>();
+        } else {
+            return routes;
+        }
+    }
+
+    @Override
+    public boolean moveFlow(UUID fromRoute, UUID flow, UUID toRoute) {
+        Route srcRoute = routesMap.getRouteByUUID(fromRoute);
+        Route dstRoute = routesMap.getRouteByUUID(toRoute);
+
+        if (srcRoute == null) {
+            logger.error("Uknown route "+fromRoute);
+            return false;
+        }
+
+        if (dstRoute == null) {
+            logger.error("Uknown route "+toRoute);
+            return false;
+        }
+
+        LogicalFlow flowToMove = null;
+        for (LogicalFlow logicalFlow : srcRoute.getFlows()) {
+            if (logicalFlow.getId().equals(flow)) {
+                flowToMove = logicalFlow;
+                break;
+            }
+        }
+
+        if (flowToMove != null) {
+            logger.info("Moving flow "+flow);
+            logger.info("1. Programming flow");
+            boolean ret =programRoute(flowToMove, dstRoute);
+            logger.info("2. Removing old flow");
+            ret &= removeOlderFlow(flowToMove, srcRoute, dstRoute);
+            return ret;
+        } else {
+            logger.error("Could't find flow "+flow);
+            return false;
+        }
+    }
+
 }

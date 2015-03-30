@@ -7,7 +7,7 @@ public class Path<V,E> implements Comparable<Path<V,E>> {
     protected ArrayList<V> vertices;
     protected ArrayList<E> edges;
     protected Integer hops;
-    
+
     public Path(Path<V,E> p) {
         vertices = new ArrayList<V>();
         edges = new ArrayList<E>();
@@ -15,32 +15,32 @@ public class Path<V,E> implements Comparable<Path<V,E>> {
         edges.addAll(p.getEdges());
         hops = p.getHops();
     }
-    
+
     public Path(V v) {
         vertices = new ArrayList<V>();
         edges = new ArrayList<E>();
         vertices.add(v);
-        hops = 0;
+        hops = 1;
     }
-    
+
     public void add(V v, E e) {
         vertices.add(v);
         edges.add(e);
         hops++;
     }
-    
+
     public V getSource() {
         return vertices.get(0);
     }
-    
+
     public V getTarget() {
         return vertices.get(vertices.size()-1);
     }
-    
+
     public List<V> getVertices() {
         return vertices;
     }
-    
+
     public ArrayList<E> getEdges() {
         return edges;
     }
@@ -48,7 +48,7 @@ public class Path<V,E> implements Comparable<Path<V,E>> {
     public Integer getHops() {
         return hops;
     }
-    
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();

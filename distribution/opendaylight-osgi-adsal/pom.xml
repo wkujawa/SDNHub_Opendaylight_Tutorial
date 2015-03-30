@@ -20,6 +20,11 @@ http://maven.apache.org/maven-v4_0_0.xsd">
       <artifactId>adsal_L2_forwarding</artifactId>
       <version>${adsal_L2_forwarding.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.sdnhub.odl.tutorial</groupId>
+      <artifactId>tee.northbound</artifactId>
+      <version>${tee.northbound.version}</version>
+    </dependency>
 
     <!-- SDNHub Artifacts -->
     <dependency>
