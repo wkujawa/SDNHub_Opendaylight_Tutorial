@@ -53,6 +53,8 @@ import org.opendaylight.controller.sal.packet.IPv4;
 import org.opendaylight.controller.sal.packet.Packet;
 import org.opendaylight.controller.sal.packet.PacketResult;
 import org.opendaylight.controller.sal.packet.RawPacket;
+import org.opendaylight.controller.sal.packet.TCP;
+import org.opendaylight.controller.sal.packet.UDP;
 import org.opendaylight.controller.sal.reader.FlowOnNode;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.sal.utils.EtherTypes;
@@ -96,6 +98,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private int K = 5;
     private RoutesMap routesMap = new RoutesMap();
     private ArpTable arpTable = new ArpTable();
+
+    // Match configuration, read from configuration
+    private boolean useTpDst = false;
+    private boolean useTpSrc = false;
+    private boolean useNwProto = false;
 
     private static final short MOVING_TIMEOUT = 5; // idle timeout for flow to be removed
 
@@ -245,6 +252,21 @@ public class TutorialL2Forwarding implements IListenDataPacket,
      */
     private void readConfiguration() {
         String kStr = System.getProperty("tee.k", "5");
+        String matchFieldsStr = System.getProperty("tee.matchFields");
+
+        if (matchFieldsStr != null) {
+            matchFieldsStr.toUpperCase();
+            if (matchFieldsStr.contains("NW_PROTO")) {
+                useNwProto = true;
+            }
+            if (matchFieldsStr.contains("TP_SRC")) {
+                useTpSrc = true;
+            }
+            if (matchFieldsStr.contains("TP_DST")) {
+                useTpDst = true;
+            }
+        }
+
 
         if (kStr != null) {
             try {
@@ -294,79 +316,79 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 logger.info("Got packet {} -> {} at {}", Utils.mac2str(srcMAC),
                         Utils.mac2str(dstMAC), inPkt.getIncomingNodeConnector()
                                 .getNodeConnectorIDString());
-                logger.info("Ethtype: "+((Ethernet) packet).getEtherType());
 
-                if (!routesMap.getRoutes(srcMAC, dstMAC).isEmpty()) {
-                    logger.error("Route should be already programmed. Loosing packet.");
-                    //TODO Send it with Packet Out just in case
-                    return PacketResult.IGNORED;
-                }
+                List<Route> routes = routesMap.getRoutes(srcMAC, dstMAC);
+                HostNodeConnector src = null;
+                HostNodeConnector dst = null;
+                if (routes.isEmpty()) {
+                    if (payload instanceof IPv4) {
+                        InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
+                        InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
+                        logger.info("Discovering.."); //TODO is it better to first query for host ?
+                        Future<HostNodeConnector> fsrc = hostTracker.discoverHost(srcIP);
+                        Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
 
-                if (payload instanceof IPv4) {
-                    InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
-                    InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
-                    logger.info("Discovering.."); //TODO is it better to first query for host ?
-                    Future<HostNodeConnector> fsrc = hostTracker.discoverHost(srcIP);
-                    Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
-
-                    try {
-                        HostNodeConnector src = fsrc.get();
-                        HostNodeConnector dst = fdst.get();
-
-                        // Flow leading to host
-                        // TODO do not duplicate
-                        flowToHost(srcMAC, src.getnodeConnector());
-                        flowToHost(dstMAC, dst.getnodeConnector());
-
-                        logger.info("{} () at {}",
-                                srcIP, Utils.mac2str(srcMAC), src.getnodeconnectorNode().getNodeIDString());
-                        logger.info("{} () at {}",
-                                dstIP, Utils.mac2str(dstMAC), dst.getnodeconnectorNode().getNodeIDString());
-                        arpTable.put(BitBufferHelper.toNumber(srcMAC),srcIP.getHostAddress());
-                        arpTable.put(BitBufferHelper.toNumber(dstMAC),dstIP.getHostAddress());
-
-                        logger.info("Looking for k-paths");
-                        List<Route> routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),K));
-
-
-                        logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
-                        for (Route route : routes) {
-                            logger.info("Path:");
-                            for (Device device : route.getPath().getVertices()) {
-                                logger.info("Device: "+device);
-                            }
-                            logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
-                        }
-                        logger.info("------------------------");
-
-
-                        routesMap.addRoutes(routes, srcMAC, dstMAC);
-                        routesMap.addRoutes(routes, dstMAC, srcMAC);
-                        Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
-                        programRouteBidirect((Ethernet) packet, bestRoute);
-
-                        // TODO first packet still is lost
-                        // is it to late ?
-                        // is it to fast ?
-                        // wrong node connector ? send to all host node connectors
                         try {
-                            RawPacket rawPacket = new RawPacket(inPkt);
-                            rawPacket.setOutgoingNodeConnector(dst.getnodeConnector()); //TODO is it ok, shouldn't take that from route?
-                            logger.info("Sending Packet: {}",
-                                    rawPacket.getOutgoingNodeConnector());
-                            dataPacketService.transmitDataPacket(rawPacket);
-                        } catch (ConstructionException e) {
-                            logger.error("Cannot construct packet: {}",e);
-                        }
+                            src = fsrc.get();
+                            dst = fdst.get();
 
-                        return PacketResult.CONSUME;
-                    } catch (InterruptedException | ExecutionException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
+                            // Flow leading to host
+                            flowToHost(srcMAC, src.getnodeConnector());
+                            flowToHost(dstMAC, dst.getnodeConnector());
+
+                            logger.info("{} () at {}",
+                                    srcIP, Utils.mac2str(srcMAC), src.getnodeconnectorNode().getNodeIDString());
+                            logger.info("{} () at {}",
+                                    dstIP, Utils.mac2str(dstMAC), dst.getnodeconnectorNode().getNodeIDString());
+                            arpTable.put(BitBufferHelper.toNumber(srcMAC),srcIP.getHostAddress());
+                            arpTable.put(BitBufferHelper.toNumber(dstMAC),dstIP.getHostAddress());
+
+                            logger.info("Looking for k-paths");
+                            routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),K));
+
+
+                            logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
+                            for (Route route : routes) {
+                                logger.info("Path:");
+                                for (Device device : route.getPath().getVertices()) {
+                                    logger.info("Device: "+device);
+                                }
+                                logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
+                            }
+                            logger.info("------------------------");
+
+                            routesMap.addRoutes(routes, srcMAC, dstMAC);
+                            routesMap.addRoutes(routes, dstMAC, srcMAC);
+                        } catch (InterruptedException | ExecutionException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    } else {
+                        logger.info("Not IPV4. Not programming.");
+                        return PacketResult.KEEP_PROCESSING;
                     }
                 } else {
-                    logger.info("Not IPV4");
+                    dst = getHostNodeConnectorByMac(dstMAC);
                 }
+                Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
+                programRouteBidirect((Ethernet) packet, bestRoute);
+
+                // TODO first packet still is lost
+                // is it to late ?
+                // is it to fast ?
+                // wrong node connector ? send to all host node connectors
+                // How about buffer_id
+                try {
+                    RawPacket rawPacket = new RawPacket(inPkt);
+                    rawPacket.setOutgoingNodeConnector(dst.getnodeConnector()); //TODO is it ok, shouldn't take that from route?
+                    logger.info("Sending Packet: {}",
+                            rawPacket.getOutgoingNodeConnector());
+                    dataPacketService.transmitDataPacket(rawPacket);
+                } catch (ConstructionException e) {
+                    logger.error("Cannot construct packet: {}",e);
+                }
+
+                return PacketResult.CONSUME;
             }
 
             return PacketResult.IGNORED;
@@ -486,6 +508,39 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         byte[] srcMAC = !reversed ? ethpacket.getSourceMACAddress() : ethpacket.getDestinationMACAddress();
         byte[] dstMAC = !reversed ? ethpacket.getDestinationMACAddress() : ethpacket.getSourceMACAddress();
 
+        Packet payload = ethpacket.getPayload();
+        if (payload instanceof IPv4) {
+            IPv4 ipPacket = (IPv4) payload;
+            if (useNwProto) {
+                match.setField(new MatchField(MatchType.NW_PROTO, ipPacket.getProtocol()));
+            }
+
+            Short tpSrc = null;
+            Short tpDst = null;
+            Packet tlPacket = payload.getPayload();
+            if (tlPacket instanceof TCP) {
+                tpSrc = ((TCP) tlPacket).getSourcePort();
+                tpDst = ((TCP)tlPacket).getDestinationPort();
+            } else if (tlPacket instanceof UDP) {
+                tpSrc = ((UDP) tlPacket).getSourcePort();
+                tpDst = ((UDP)tlPacket).getDestinationPort();
+            }
+
+            if (reversed) {
+                Short tmp = tpSrc;
+                tpSrc = tpDst;
+                tpDst = tmp;
+            }
+
+            if (useTpSrc && tpSrc != null) {
+                match.setField(new MatchField(MatchType.TP_SRC, tpSrc));
+            }
+            if (useTpDst && tpDst != null) {
+                match.setField(new MatchField(MatchType.TP_DST, tpDst));
+            }
+        }
+
+        match.setField(new MatchField(MatchType.DL_TYPE, ethpacket.getEtherType()));
         match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
         return match;
