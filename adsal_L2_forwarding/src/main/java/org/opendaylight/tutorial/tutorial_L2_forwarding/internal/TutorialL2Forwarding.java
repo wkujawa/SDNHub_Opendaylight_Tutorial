@@ -189,6 +189,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 }
             }
         }
+
+        readConfiguration();
+
         logger.info("Starting Network Monitor..");
         networkMonitor = new NetworkMonitor();
     }
@@ -232,6 +235,23 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     void stop() {
         networkMonitor.stop();
         logger.info("Stopped");
+    }
+
+    /**
+     * Retrieves user configurations from config.ini and updates:
+     * <ul>
+     *  <li>k value for k-shortest path</li>
+     * </ul>
+     */
+    private void readConfiguration() {
+        String kStr = System.getProperty("tee.k", "5");
+
+        if (kStr != null) {
+            try {
+                K = Integer.parseInt(kStr);
+            } catch (Exception e) {
+            }
+        }
     }
 
     ////////////////////
