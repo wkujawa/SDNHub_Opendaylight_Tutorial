@@ -301,6 +301,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         if (!(packet instanceof Ethernet)) {
             return PacketResult.IGNORED;
         } else {
+            NodeConnector poConnector = null;  // Connector for Packet Out
             Object payload = packet.getPayload();
             byte[] srcMAC = ((Ethernet) packet).getSourceMACAddress();
             byte[] dstMAC = ((Ethernet) packet).getDestinationMACAddress();
@@ -345,25 +346,25 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
                             //If both host are connected to same node don't need to find route
                             if (srcHostConnector.getnodeconnectorNode().equals(dstHostConnector.getnodeconnectorNode())) {
-                                return PacketResult.CONSUME;
-                            }
+                                poConnector = dstHostConnector.getnodeConnector();
+                            } else {
+                                logger.info("Looking for k-paths");
+                                routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(srcHostConnector.getnodeconnectorNode(), dstHostConnector.getnodeconnectorNode(),K));
 
-                            logger.info("Looking for k-paths");
-                            routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(srcHostConnector.getnodeconnectorNode(), dstHostConnector.getnodeconnectorNode(),K));
 
-
-                            logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
-                            for (Route route : routes) {
-                                logger.info("Path:");
-                                for (Device device : route.getPath().getVertices()) {
-                                    logger.info("Device: "+device);
+                                logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
+                                for (Route route : routes) {
+                                    logger.info("Path:");
+                                    for (Device device : route.getPath().getVertices()) {
+                                        logger.info("Device: "+device);
+                                    }
+                                    logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
                                 }
-                                logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
-                            }
-                            logger.info("------------------------");
+                                logger.info("------------------------");
 
-                            routesMap.addRoutes(routes, srcMAC, dstMAC);
-                            routesMap.addRoutes(routes, dstMAC, srcMAC);
+                                routesMap.addRoutes(routes, srcMAC, dstMAC);
+                                routesMap.addRoutes(routes, dstMAC, srcMAC);
+                            }
                         } catch (InterruptedException | ExecutionException e) {
                             // TODO Auto-generated catch block
                             e.printStackTrace();
@@ -376,25 +377,27 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     srcHostConnector = getHostNodeConnectorByMac(srcMAC);
                     dstHostConnector = getHostNodeConnectorByMac(dstMAC);
                 }
-                Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
-                programRouteBidirect((Ethernet) packet, bestRoute);
 
-                NodeConnector poConnector = null;
-                ArrayList<Link> links = bestRoute.getPath().getEdges();
-                Link link = null;
-                if (bestRoute.getPath().getTarget().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
-                    // Dst node is on last link
-                    link = links.get(links.size()-1);
-                } else {
-                    link = links.get(0);
-                }
+                if (poConnector == null) { //Need to program route
+                    Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
+                    programRouteBidirect((Ethernet) packet, bestRoute);
 
-                if (link.getSourceConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
-                    poConnector = link.getSourceConnector();
-                } else if (link.getDestinationConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
-                    poConnector = link.getDestinationConnector();
-                } else {
-                    logger.error("Node connector for PacketOut not found. BUG");
+                    ArrayList<Link> links = bestRoute.getPath().getEdges();
+                    Link link = null;
+                    if (bestRoute.getPath().getTarget().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+                        // Dst node is on last link
+                        link = links.get(links.size()-1);
+                    } else {
+                        link = links.get(0);
+                    }
+
+                    if (link.getSourceConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+                        poConnector = link.getSourceConnector();
+                    } else if (link.getDestinationConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+                        poConnector = link.getDestinationConnector();
+                    } else {
+                        logger.error("Node connector for PacketOut not found. BUG");
+                    }
                 }
 
                 try {
