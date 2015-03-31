@@ -16,6 +16,7 @@ import org.apache.felix.dm.Component;
 import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.sal.core.ComponentActivatorAbstractBase;
+import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerListener;
 import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
@@ -91,7 +92,8 @@ public class Activator extends ComponentActivatorAbstractBase {
                             ITopologyManagerAware.class.getName(),
                             IfNewHostNotify.class.getName(),
                             IInventoryListener.class.getName(),
-                            ITEE.class.getName() }, props);
+                            ITEE.class.getName(),
+                            IFlowProgrammerListener.class.getName()}, props);
 
             // register dependent modules
             c.add(createContainerServiceDependency(containerName).setService(

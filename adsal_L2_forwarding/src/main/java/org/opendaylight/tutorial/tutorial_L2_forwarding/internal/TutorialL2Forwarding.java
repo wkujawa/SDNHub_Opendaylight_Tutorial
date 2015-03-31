@@ -41,6 +41,7 @@ import org.opendaylight.controller.sal.core.NodeConnector;
 import org.opendaylight.controller.sal.core.Property;
 import org.opendaylight.controller.sal.core.UpdateType;
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
+import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerListener;
 import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.match.Match;
 import org.opendaylight.controller.sal.match.MatchField;
@@ -84,7 +85,7 @@ import com.google.common.net.InetAddresses;
 
 public class TutorialL2Forwarding implements IListenDataPacket,
         ITopologyManagerAware, IfNewHostNotify, IInventoryListener,
-        ITEE{
+        IFlowProgrammerListener,ITEE{
     private static final Logger logger = LoggerFactory
             .getLogger(TutorialL2Forwarding.class);
     private ISwitchManager switchManager = null;
@@ -103,8 +104,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private boolean useTpDst = false;
     private boolean useTpSrc = false;
     private boolean useNwProto = false;
-
-    private static final short MOVING_TIMEOUT = 5; // idle timeout for flow to be removed
+    // Flow timeouts, read from configuration
+    private static short MOVING_TIMEOUT = 10; // idle timeout for flow to be removed
+    private static short FLOW_TIMEOUT = 60;  // timeout for ordinary flow
 
     void setDataPacketService(IDataPacketService s) {
         this.dataPacketService = s;
@@ -253,6 +255,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private void readConfiguration() {
         String kStr = System.getProperty("tee.k", "5");
         String matchFieldsStr = System.getProperty("tee.matchFields");
+        String movingTimeoutStr = System.getProperty("tee.movingTimeout");
+        String flowTimeoutStr = System.getProperty("tee.flowTimeout");
 
         if (matchFieldsStr != null) {
             matchFieldsStr.toUpperCase();
@@ -271,6 +275,20 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         if (kStr != null) {
             try {
                 K = Integer.parseInt(kStr);
+            } catch (Exception e) {
+            }
+        }
+
+        if (movingTimeoutStr != null) {
+            try {
+                MOVING_TIMEOUT = Short.parseShort(movingTimeoutStr);
+            } catch (Exception e) {
+            }
+        }
+
+        if (flowTimeoutStr != null) {
+            try {
+                FLOW_TIMEOUT = Short.parseShort(flowTimeoutStr);
             } catch (Exception e) {
             }
         }
@@ -573,6 +591,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         actions.add(new Output(connector));
 
         Flow f = new Flow(match, actions);
+        f.setIdleTimeout(FLOW_TIMEOUT);
         logger.info("Programming flow {} on {}", f, connector.getNode()); //TODO change to debug
 
         Status status = programmer.addFlow(connector.getNode(), f);
@@ -631,6 +650,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
      * This is done by setting short idle time to flow instead of just removing that flow.
      *
      * Removal is done in reversed order.
+     *
+     * Problem: Removing by idle timeout doesn't work if initially flow was permanent. Why ?
+     * Value is set for flow properly but when counter exceeds idle timeout nothing happens.
      *
      * @param logicalFlow - flow to remove
      * @param oldRoute  - old route - logical flow was moved from it
@@ -773,6 +795,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 .getNetworkAddressAsString(), arg0.getnodeconnectorNode()
                 .getNodeIDString());
         networkMonitor.removeHost(arg0);
+        //TODO clear routes !!
     }
 
     /////////////////////
@@ -879,6 +902,20 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             logger.error("Could't find flow "+flow);
             return false;
         }
+    }
+
+    //////////////////////////
+    // IFlowProgrammerListener
+    //////////////////////////
+    @Override
+    public void flowRemoved(Node node, Flow flow) {
+        routesMap.removeFlow(flow);
+        logger.info("Flow removed "+flow);
+    }
+
+    @Override
+    public void flowErrorReported(Node node, long rid, Object err) {
+        logger.info("flowErrorReported({}, {}, {})", node, rid, err);
     }
 
 }

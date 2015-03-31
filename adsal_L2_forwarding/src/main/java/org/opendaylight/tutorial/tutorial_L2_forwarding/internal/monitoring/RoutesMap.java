@@ -7,9 +7,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.opendaylight.controller.sal.flowprogrammer.Flow;
+import org.opendaylight.controller.sal.match.MatchField;
+import org.opendaylight.controller.sal.match.MatchType;
 import org.opendaylight.controller.sal.packet.BitBufferHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RoutesMap {
+    private static final Logger logger = LoggerFactory.getLogger(RoutesMap.class);
     private Map<Long, Map<Long, List<Route>>> routesMap;
     private Map<UUID, Route> routeByUUID;
 
@@ -107,6 +113,30 @@ public class RoutesMap {
                 }
             }
             dstMap.remove(srcMAC);
+        }
+    }
+
+    /**
+     * Remove information about flow from route.
+     * @param flow that was deleted from switch
+     */
+    public void removeFlow(Flow flow) {
+        MatchField srcField = flow.getMatch().getField(MatchType.DL_SRC);
+        MatchField dstField = flow.getMatch().getField(MatchType.DL_DST);
+
+        if (srcField.isValid() && dstField.isValid()) {
+            byte[] srcMAC = (byte[]) srcField.getValue();
+            byte[] dstMAC = (byte[]) dstField.getValue();
+            List<Route> routes = getRoutes(srcMAC, dstMAC);
+            if (!routes.isEmpty()) {
+                for (Route route : routes) {
+                    route.removeFlow(flow);
+                }
+            } else {
+                logger.warn("No routes between {} and {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
+            }
+        } else {
+            logger.error("Cannot remove flow from routes map. Flow doesn't have DL_SRC or DL_DST in Match");
         }
     }
 }

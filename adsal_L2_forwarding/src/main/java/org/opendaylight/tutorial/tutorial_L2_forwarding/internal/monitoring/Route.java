@@ -1,9 +1,11 @@
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.UUID;
 
+import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 
 /**
@@ -86,6 +88,20 @@ public class Route implements Comparable<Route>{
 
     public void addFlow(LogicalFlow flow) {
         flows.add(flow);
+    }
+
+    /**
+     * Remove logical flow that wraps flow.
+     * @param flow
+     */
+    public void removeFlow(Flow flow) {
+        Iterator<LogicalFlow> iter = flows.iterator();
+        while(iter.hasNext()) {
+            LogicalFlow lFlow = iter.next();
+            if (lFlow.getMatch().equals(flow.getMatch())) {
+                iter.remove();
+            }
+        }
     }
 
     public void removeFlow(LogicalFlow flow) {
