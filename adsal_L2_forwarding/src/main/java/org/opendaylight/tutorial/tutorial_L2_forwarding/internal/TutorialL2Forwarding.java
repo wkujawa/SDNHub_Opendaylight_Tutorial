@@ -318,8 +318,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                                 .getNodeConnectorIDString());
 
                 List<Route> routes = routesMap.getRoutes(srcMAC, dstMAC);
-                HostNodeConnector src = null;
-                HostNodeConnector dst = null;
+                HostNodeConnector srcHostConnector = null;
+                HostNodeConnector dstHostConnector = null;
                 if (routes.isEmpty()) {
                     if (payload instanceof IPv4) {
                         InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
@@ -329,22 +329,27 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
 
                         try {
-                            src = fsrc.get();
-                            dst = fdst.get();
+                            srcHostConnector = fsrc.get();
+                            dstHostConnector = fdst.get();
 
                             // Flow leading to host
-                            flowToHost(srcMAC, src.getnodeConnector());
-                            flowToHost(dstMAC, dst.getnodeConnector());
+                            flowToHost(srcMAC, srcHostConnector.getnodeConnector());
+                            flowToHost(dstMAC, dstHostConnector.getnodeConnector());
 
                             logger.info("{} () at {}",
-                                    srcIP, Utils.mac2str(srcMAC), src.getnodeconnectorNode().getNodeIDString());
+                                    srcIP, Utils.mac2str(srcMAC), srcHostConnector.getnodeconnectorNode().getNodeIDString());
                             logger.info("{} () at {}",
-                                    dstIP, Utils.mac2str(dstMAC), dst.getnodeconnectorNode().getNodeIDString());
+                                    dstIP, Utils.mac2str(dstMAC), dstHostConnector.getnodeconnectorNode().getNodeIDString());
                             arpTable.put(BitBufferHelper.toNumber(srcMAC),srcIP.getHostAddress());
                             arpTable.put(BitBufferHelper.toNumber(dstMAC),dstIP.getHostAddress());
 
+                            //If both host are connected to same node don't need to find route
+                            if (srcHostConnector.getnodeconnectorNode().equals(dstHostConnector.getnodeconnectorNode())) {
+                                return PacketResult.CONSUME;
+                            }
+
                             logger.info("Looking for k-paths");
-                            routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(src.getnodeconnectorNode(), dst.getnodeconnectorNode(),K));
+                            routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(srcHostConnector.getnodeconnectorNode(), dstHostConnector.getnodeconnectorNode(),K));
 
 
                             logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
@@ -368,19 +373,33 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         return PacketResult.KEEP_PROCESSING;
                     }
                 } else {
-                    dst = getHostNodeConnectorByMac(dstMAC);
+                    srcHostConnector = getHostNodeConnectorByMac(srcMAC);
+                    dstHostConnector = getHostNodeConnectorByMac(dstMAC);
                 }
                 Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
                 programRouteBidirect((Ethernet) packet, bestRoute);
 
-                // TODO first packet still is lost
-                // is it to late ?
-                // is it to fast ?
-                // wrong node connector ? send to all host node connectors
-                // How about buffer_id
+                NodeConnector poConnector = null;
+                ArrayList<Link> links = bestRoute.getPath().getEdges();
+                Link link = null;
+                if (bestRoute.getPath().getTarget().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+                    // Dst node is on last link
+                    link = links.get(links.size()-1);
+                } else {
+                    link = links.get(0);
+                }
+
+                if (link.getSourceConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+                    poConnector = link.getSourceConnector();
+                } else if (link.getDestinationConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+                    poConnector = link.getDestinationConnector();
+                } else {
+                    logger.error("Node connector for PacketOut not found. BUG");
+                }
+
                 try {
                     RawPacket rawPacket = new RawPacket(inPkt);
-                    rawPacket.setOutgoingNodeConnector(dst.getnodeConnector()); //TODO is it ok, shouldn't take that from route?
+                    rawPacket.setOutgoingNodeConnector(poConnector);
                     logger.info("Sending Packet: {}",
                             rawPacket.getOutgoingNodeConnector());
                     dataPacketService.transmitDataPacket(rawPacket);
