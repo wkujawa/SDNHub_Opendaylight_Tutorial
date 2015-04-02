@@ -24,6 +24,19 @@ public class RoutesMap {
         routeByUUID = new HashMap<UUID, Route>();
     }
 
+    public boolean isEmpty() {
+        if (routeByUUID.isEmpty() && routesMap.isEmpty()) {
+            return true;
+        } else if (!routeByUUID.isEmpty() && !routesMap.isEmpty()) {
+            return false;
+        } else {
+            logger.error("Something wrong, one map is empty and one is not");
+            logger.error(routeByUUID.toString());
+            logger.error(routesMap.toString());
+            return false;
+        }
+    }
+
     public List<Route> getRoutes(byte[] srcMAC, byte[] dstMAC) {
         long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
         long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
@@ -75,15 +88,58 @@ public class RoutesMap {
     }
 
     public void addRoutes(List<Route> routes, long srcMAC, long dstMAC) {
-        Map<Long,List<Route>> dstMap = new HashMap<Long,List<Route>>();
-        Map<Long,List<Route>> srcMap = new HashMap<Long,List<Route>>();
-        dstMap.put(dstMAC, routes);
-        srcMap.put(srcMAC, routes);
-        routesMap.put(srcMAC, dstMap);
-        routesMap.put(dstMAC, srcMap);
+
+        Map<Long,List<Route>> srcMap = routesMap.get(srcMAC);
+        if (srcMap == null) {
+            srcMap = new HashMap<Long,List<Route>>();
+            routesMap.put(srcMAC, srcMap);
+        }
+
+        if (srcMap.containsKey(dstMAC)) {
+            logger.warn("There are already routes for {}->{}",
+                    Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
+            logger.warn("Replacing {} with {}", srcMap.get(dstMAC), routes);
+        }
+
+        srcMap.put(dstMAC, routes);
         // Mapping by UUIDs
         for (Route route : routes) {
             routeByUUID.put(route.getId(), route);
+        }
+    }
+
+    /**
+     * Remove routes from and to host.
+     * @param srcMAC - MAC address of host
+     */
+    public void removeRoutes(byte[] srcMAC) {
+        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
+        removeRoutes(srcMAC_val);
+    }
+
+    /**
+     * Remove routes from and to host.
+     * @param srcMAC - MAC address of host
+     */
+    public void removeRoutes(long srcMAC) {
+        logger.info("Removing routes connecting with {}", Utils.mac2str(srcMAC));
+        // Clear all routes from src
+        Map<Long, List<Route>> srcMap = routesMap.get(srcMAC);
+        if (srcMap != null) {
+            // Removing from by UUID map
+            for(List<Route> routes :srcMap.values()) {
+                for (Route route: routes) {
+                    routeByUUID.remove(route.getId());
+                }
+            }
+            routesMap.remove(srcMAC);
+        }
+
+        //Clear all routes to src
+        for (Long mac : routesMap.keySet()) {
+            if (routesMap.get(mac).containsKey(srcMAC)) {
+                removeRoutes(mac, srcMAC);
+            }
         }
     }
 
@@ -95,7 +151,6 @@ public class RoutesMap {
 
     public void removeRoutes(long srcMAC, long dstMAC) {
         Map<Long, List<Route>> srcMap = routesMap.get(srcMAC);
-        Map<Long, List<Route>> dstMap = routesMap.get(srcMAC);
         if (srcMap != null) {
             // Removing from by UUID map
             for(List<Route> routes :srcMap.values()) {
@@ -104,15 +159,9 @@ public class RoutesMap {
                 }
             }
             srcMap.remove(dstMAC);
-        }
-        if (dstMap != null) {
-            // Removing from by UUID map
-            for(List<Route> routes :dstMap.values()) {
-                for (Route route: routes) {
-                    routeByUUID.remove(route.getId());
-                }
+            if (srcMap.isEmpty()) {
+                routesMap.remove(srcMAC);
             }
-            dstMap.remove(srcMAC);
         }
     }
 
@@ -123,6 +172,11 @@ public class RoutesMap {
     public void removeFlow(Flow flow) {
         MatchField srcField = flow.getMatch().getField(MatchType.DL_SRC);
         MatchField dstField = flow.getMatch().getField(MatchType.DL_DST);
+
+        if (srcField == null || dstField == null) {
+            // It is Flow leading to host, no information is stored about it
+            return;
+        }
 
         if (srcField.isValid() && dstField.isValid()) {
             byte[] srcMAC = (byte[]) srcField.getValue();
