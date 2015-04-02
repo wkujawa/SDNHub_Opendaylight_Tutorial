@@ -718,12 +718,12 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     Match match = flow.getMatch();
                     MatchField srcField = match.getField(MatchType.DL_SRC);
                     MatchField dstField = match.getField(MatchType.DL_DST);
-                    logger.info("Removing {} <-> {}", srcField.getValue(), dstField.getValue());
+                    logger.info("Removing {} <-> {}", Utils.mac2str((byte[])srcField.getValue()), Utils.mac2str((byte[])dstField.getValue()));
                     clearRoute((byte[])srcField.getValue(), (byte[])dstField.getValue());
                     //Remove all routes and find again K shortest paths (Will be done on Packet IN).
                     //Of course it is not optimal solution. //TODO
                     routesMap.removeRoutes((byte[])srcField.getValue(), (byte[])dstField.getValue());
-
+                    routesMap.removeRoutes((byte[])dstField.getValue(), (byte[])srcField.getValue());
                     // It will be programmed in standard way in reaction to PacketIn
                     continue;
                 }
@@ -737,6 +737,24 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private HostNodeConnector getHostNodeConnectorByMac(byte [] mac) {
         String srcIP = arpTable.getIP(BitBufferHelper.toNumber(mac));
         return hostTracker.hostFind(InetAddresses.forString(srcIP));
+    }
+
+    /**
+     * Sanity check - internal data (RoutesMap and ArpTable) should be empty.
+     * @return true if passed, false if not passed
+     */
+    private boolean emptinessSanityCheck() {
+        logger.info("Emptiness sanity check..");
+        if (!routesMap.isEmpty()) {
+            logger.error("FAILED. RoutesMap is not empty, but last host have been removed.");
+            return false;
+        }
+        if (!arpTable.isEmpty()) {
+            logger.error("FAILED. ArpTable is not empty, but last host have been removed.");
+            return false;
+        }
+        logger.info("PASSED");
+        return true;
     }
 
     ////////////////////////
@@ -794,8 +812,15 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         logger.info("notifyHTClientHostRemoved: {} removed from {}", arg0
                 .getNetworkAddressAsString(), arg0.getnodeconnectorNode()
                 .getNodeIDString());
+        // TODO remove flow
         networkMonitor.removeHost(arg0);
-        //TODO clear routes !!
+        routesMap.removeRoutes(arg0.getDataLayerAddressBytes());
+        arpTable.remove(BitBufferHelper.getLong(arg0.getDataLayerAddressBytes()));
+        // Sanity check
+        if (hostTracker.getAllHosts().isEmpty()) {
+            //There is no hosts so ARP table and routes map should be empty
+            emptinessSanityCheck();
+        }
     }
 
     /////////////////////
@@ -815,6 +840,12 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             break;
         case REMOVED:
             networkMonitor.removeDevice(arg0);
+            //TODO remove Routes containing that node and move logical flows
+            // Sanity check
+            if (switchManager.getNodes().isEmpty()) {
+                //There is no hosts so ARP table and routes map should be empty
+                emptinessSanityCheck();
+            }
             break;
         default:
             break;
