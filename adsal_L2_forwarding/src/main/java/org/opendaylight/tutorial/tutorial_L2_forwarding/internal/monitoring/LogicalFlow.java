@@ -6,11 +6,15 @@ import org.opendaylight.controller.sal.match.Match;
 
 public class LogicalFlow {
     protected final UUID id;
-    protected Match match;
+    protected final Match match;
+    protected final String srcIP;
+    protected final String dstIP;
     //TODO add stats
 
-    public LogicalFlow(Match match) {
+    public LogicalFlow(Match match, String srcIP, String dstIP) {
         id = UUID.randomUUID();
+        this.srcIP = srcIP;
+        this.dstIP = dstIP;
         this.match = match;
     }
 
@@ -21,4 +25,13 @@ public class LogicalFlow {
     public Match getMatch() {
         return match;
     }
+
+    public String getSrcIP() {
+        return srcIP;
+    }
+
+    public String getDstIP() {
+        return dstIP;
+    }
+
 }

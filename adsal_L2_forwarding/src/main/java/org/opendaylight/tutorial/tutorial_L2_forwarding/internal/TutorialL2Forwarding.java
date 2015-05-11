@@ -20,6 +20,7 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
@@ -447,8 +448,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
      * @return
      */
     private boolean programRouteBidirect(Ethernet ethpacket, Route route) {
-        boolean ret1 = programRoute(new LogicalFlow(makeMatch(ethpacket, false)), route);
-        boolean ret2 =programRoute(new LogicalFlow(makeMatch(ethpacket, true)), route);
+        boolean ret1 = programRoute(makeLogicalFlow(ethpacket, false), route);
+        boolean ret2 = programRoute(makeLogicalFlow(ethpacket, true), route);
 
         return ret1 && ret2;
     }
@@ -543,18 +544,22 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         return ret;
     }
 
-    private Match makeMatch(Ethernet ethpacket, boolean reversed) {
+    private LogicalFlow makeLogicalFlow(Ethernet ethpacket, boolean reversed){
         Match match = new Match();
         byte[] srcMAC = !reversed ? ethpacket.getSourceMACAddress() : ethpacket.getDestinationMACAddress();
         byte[] dstMAC = !reversed ? ethpacket.getDestinationMACAddress() : ethpacket.getSourceMACAddress();
-
+        String srcIP = null;
+        String dstIP = null;
         Packet payload = ethpacket.getPayload();
         if (payload instanceof IPv4) {
             IPv4 ipPacket = (IPv4) payload;
+            srcIP = !reversed ? NetUtils.getInetAddress(ipPacket.getSourceAddress()).getHostAddress()
+                    : NetUtils.getInetAddress(ipPacket.getDestinationAddress()).getHostAddress();
+            dstIP = !reversed ? NetUtils.getInetAddress(ipPacket.getDestinationAddress()).getHostAddress()
+                    : NetUtils.getInetAddress(ipPacket.getSourceAddress()).getHostAddress();
             if (useNwProto) {
                 match.setField(new MatchField(MatchType.NW_PROTO, ipPacket.getProtocol()));
             }
-
             Short tpSrc = null;
             Short tpDst = null;
             Packet tlPacket = payload.getPayload();
@@ -583,7 +588,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         match.setField(new MatchField(MatchType.DL_TYPE, ethpacket.getEtherType()));
         match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
-        return match;
+
+        return new LogicalFlow(match, srcIP, dstIP);
     }
 
     private boolean programFlow(NodeConnector connector, Match match) {
@@ -735,8 +741,12 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     // Utilities
     ////////////////////////
     private HostNodeConnector getHostNodeConnectorByMac(byte [] mac) {
-        String srcIP = arpTable.getIP(BitBufferHelper.toNumber(mac));
+        String srcIP = getIP(mac);
         return hostTracker.hostFind(InetAddresses.forString(srcIP));
+    }
+
+    private String getIP(byte [] mac) {
+        return arpTable.getIP(BitBufferHelper.toNumber(mac));
     }
 
     /**
@@ -880,6 +890,15 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     @Override
     public Collection<Device> getDevices() {
         return networkMonitor.getDevices();
+    }
+
+    @Override
+    public Collection<LogicalFlow> getFlows() {
+        Set<LogicalFlow> flows = new HashSet<LogicalFlow>();
+        for (Route route : routesMap.getAllRoutes()) {
+            flows.addAll(route.getFlows());
+        }
+        return flows;
     }
 
     @Override

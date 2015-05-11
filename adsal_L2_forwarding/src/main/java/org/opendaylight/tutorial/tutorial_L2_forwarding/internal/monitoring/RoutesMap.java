@@ -1,5 +1,6 @@
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -79,6 +80,16 @@ public class RoutesMap {
 
     public Route getRouteByUUID(UUID id) {
         return routeByUUID.get(id);
+    }
+
+    public List<Route> getAllRoutes() {
+        List<Route> allRoutes = new ArrayList<Route>();
+        for (Map<Long, List<Route>> map : routesMap.values()) {
+            for (List<Route> routes : map.values()) {
+                allRoutes.addAll(routes);
+            }
+        }
+        return allRoutes;
     }
 
     public void addRoutes(List<Route> routes, byte[] srcMAC, byte[] dstMAC) {

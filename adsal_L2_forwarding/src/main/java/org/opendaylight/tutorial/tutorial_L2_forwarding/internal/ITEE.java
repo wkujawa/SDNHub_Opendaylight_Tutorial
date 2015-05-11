@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.LogicalFlow;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
 
@@ -25,6 +26,8 @@ public interface ITEE {
     public Collection<Link> getLinks();
 
     public Collection<Device> getDevices();
+
+    public Collection<LogicalFlow> getFlows();
 
     public Collection<Route> getRoutes(String srcIP, String dstIP);
 

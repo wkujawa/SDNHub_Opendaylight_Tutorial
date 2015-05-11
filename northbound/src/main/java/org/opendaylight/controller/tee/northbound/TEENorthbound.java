@@ -20,6 +20,7 @@ import org.opendaylight.controller.sal.utils.ServiceHelper;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.ITEE;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.LogicalFlow;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
 
 @Path("/")
@@ -78,6 +79,18 @@ public class TEENorthbound {
         return tee.getDevices();
     }
 
+    /**
+     * Get all logical flows
+     *
+     * @return - list of logical flows
+     */
+    @Path("/flows")
+    @Produces(MediaType.APPLICATION_JSON)
+    @GET
+    public Collection<LogicalFlow> getFlows() {
+        ITEE tee = getTEE();
+        return tee.getFlows();
+    }
 
     @Path("/routes/{srcIP}/{dstIP}")
     @Produces(MediaType.APPLICATION_JSON)
