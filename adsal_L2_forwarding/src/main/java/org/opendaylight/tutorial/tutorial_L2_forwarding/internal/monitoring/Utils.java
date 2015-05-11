@@ -1,10 +1,6 @@
 package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 
 import java.text.DecimalFormat;
-import java.util.LinkedList;
-import java.util.List;
-
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 
 public class Utils {
     public final static long BASE = 1024; // TODO is that base in OpenFlow, etc.
@@ -45,13 +41,5 @@ public class Utils {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
-    }
-
-    public static List<Route> PathsToRoutes(List<Path<Device, Link>> paths) {
-        List<Route> routes = new LinkedList<Route>();
-        for (Path<Device, Link> path : paths) {
-            routes.add(new Route(path));
-        }
-        return routes;
     }
 }

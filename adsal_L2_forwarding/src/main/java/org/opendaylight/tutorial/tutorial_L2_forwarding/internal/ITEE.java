@@ -5,7 +5,6 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
 
 import java.util.Collection;
 import java.util.Set;
-import java.util.UUID;
 
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
@@ -31,5 +30,5 @@ public interface ITEE {
 
     public Collection<Route> getRoutes(String srcIP, String dstIP);
 
-    public boolean moveFlow(UUID fromRoute, UUID flow, UUID toRoute); //TODO error handling
+    public boolean moveFlow(int fromRoute, int flow, int toRoute); //TODO error handling
 }

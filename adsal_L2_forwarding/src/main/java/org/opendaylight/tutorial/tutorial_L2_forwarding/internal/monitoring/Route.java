@@ -3,13 +3,12 @@ package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.UUID;
 
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 
 /**
- * Class representing route between two hosts. Identified by UUID.
+ * Class representing route between two hosts. Identified by ID.
  *
  * @author Wiktor Kujawa
  *
@@ -21,11 +20,11 @@ public class Route implements Comparable<Route>{
     private long availableBandwidth = 0;
     private long bandwidth = 0;
     private long cost = 0;
-    private final UUID id;
+    private final int id;
     private Collection<LogicalFlow> flows = new LinkedList<LogicalFlow>();
 
-    public Route(Path<Device, Link> p) {
-        id = UUID.randomUUID();
+    public Route(Path<Device, Link> p, int id) {
+        this.id = id;
         path = p;
         setBandwitdh();
     }
@@ -82,7 +81,7 @@ public class Route implements Comparable<Route>{
         return path.getHops();
     }
 
-    public UUID getId() {
+    public int getId() {
         return id;
     }
 

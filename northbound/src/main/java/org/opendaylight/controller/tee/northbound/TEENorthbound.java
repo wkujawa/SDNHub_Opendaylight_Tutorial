@@ -3,7 +3,6 @@ package org.opendaylight.controller.tee.northbound;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
@@ -110,7 +109,7 @@ public class TEENorthbound {
             @PathParam("toRoute") String toRoute) {
         ITEE tee = getTEE();
         System.out.println("NB :: move flow: "+ flow +" from "+fromRoute+" to "+toRoute);
-        if (tee.moveFlow(UUID.fromString(fromRoute), UUID.fromString(flow), UUID.fromString(toRoute))) {
+        if (tee.moveFlow(Integer.parseInt(fromRoute), Integer.parseInt(flow), Integer.parseInt(toRoute))) {
             Response.ok(); // Flow moved
         } else {
             Response.serverError(); // Flow not moved - wrong input

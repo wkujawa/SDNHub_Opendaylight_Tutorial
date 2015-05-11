@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -75,6 +74,7 @@ import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Netw
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.RoutesMap;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Utils;
+import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -108,6 +108,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     // Flow timeouts, read from configuration
     private static short MOVING_TIMEOUT = 10; // idle timeout for flow to be removed
     private static short FLOW_TIMEOUT = 60;  // timeout for ordinary flow
+
+    // Last used id for Route
+    private static int lastRouteId = 0;
+    // Last used id for LogicalFLow
+    private static int lastFlowId = 0;
 
     void setDataPacketService(IDataPacketService s) {
         this.dataPacketService = s;
@@ -368,7 +373,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                                 poConnector = dstHostConnector.getnodeConnector();
                             } else {
                                 logger.info("Looking for k-paths");
-                                routes = Utils.PathsToRoutes(networkMonitor.getKShortestPath(srcHostConnector.getnodeconnectorNode(), dstHostConnector.getnodeconnectorNode(),K));
+                                routes = pathsToRoutes(networkMonitor.getKShortestPath(srcHostConnector.getnodeconnectorNode(), dstHostConnector.getnodeconnectorNode(),K));
 
 
                                 logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
@@ -589,7 +594,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
 
-        return new LogicalFlow(match, srcIP, dstIP);
+        return new LogicalFlow(match, srcIP, dstIP, lastFlowId++);
     }
 
     private boolean programFlow(NodeConnector connector, Match match) {
@@ -747,6 +752,14 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
     private String getIP(byte [] mac) {
         return arpTable.getIP(BitBufferHelper.toNumber(mac));
+    }
+
+    private List<Route> pathsToRoutes(List<Path<Device, Link>> paths) {
+        List<Route> routes = new LinkedList<Route>();
+        for (Path<Device, Link> path : paths) {
+            routes.add(new Route(path, lastRouteId++));
+        }
+        return routes;
     }
 
     /**
@@ -919,9 +932,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     }
 
     @Override
-    public boolean moveFlow(UUID fromRoute, UUID flow, UUID toRoute) {
-        Route srcRoute = routesMap.getRouteByUUID(fromRoute);
-        Route dstRoute = routesMap.getRouteByUUID(toRoute);
+    public boolean moveFlow(int fromRoute, int flow, int toRoute) {
+        Route srcRoute = routesMap.getRouteById(fromRoute);
+        Route dstRoute = routesMap.getRouteById(toRoute);
 
         if (srcRoute == null) {
             logger.error("Uknown route "+fromRoute);
@@ -935,7 +948,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
         LogicalFlow flowToMove = null;
         for (LogicalFlow logicalFlow : srcRoute.getFlows()) {
-            if (logicalFlow.getId().equals(flow)) {
+            if (logicalFlow.getId() == flow) {
                 flowToMove = logicalFlow;
                 break;
             }

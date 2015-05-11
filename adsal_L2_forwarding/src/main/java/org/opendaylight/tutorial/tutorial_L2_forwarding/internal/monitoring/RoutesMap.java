@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.controller.sal.match.MatchField;
@@ -18,21 +17,21 @@ import org.slf4j.LoggerFactory;
 public class RoutesMap {
     private static final Logger logger = LoggerFactory.getLogger(RoutesMap.class);
     private Map<Long, Map<Long, List<Route>>> routesMap;
-    private Map<UUID, Route> routeByUUID;
+    private Map<Integer, Route> routeById;
 
     public RoutesMap() {
         routesMap = new HashMap<Long, Map<Long,List<Route>>>();
-        routeByUUID = new HashMap<UUID, Route>();
+        routeById = new HashMap<Integer, Route>();
     }
 
     public boolean isEmpty() {
-        if (routeByUUID.isEmpty() && routesMap.isEmpty()) {
+        if (routeById.isEmpty() && routesMap.isEmpty()) {
             return true;
-        } else if (!routeByUUID.isEmpty() && !routesMap.isEmpty()) {
+        } else if (!routeById.isEmpty() && !routesMap.isEmpty()) {
             return false;
         } else {
             logger.error("Something wrong, one map is empty and one is not");
-            logger.error(routeByUUID.toString());
+            logger.error(routeById.toString());
             logger.error(routesMap.toString());
             return false;
         }
@@ -78,8 +77,8 @@ public class RoutesMap {
         return routes.get(0);
     }
 
-    public Route getRouteByUUID(UUID id) {
-        return routeByUUID.get(id);
+    public Route getRouteById(int id) {
+        return routeById.get(id);
     }
 
     public List<Route> getAllRoutes() {
@@ -113,9 +112,9 @@ public class RoutesMap {
         }
 
         srcMap.put(dstMAC, routes);
-        // Mapping by UUIDs
+        // Mapping by IDs
         for (Route route : routes) {
-            routeByUUID.put(route.getId(), route);
+            routeById.put(route.getId(), route);
         }
     }
 
@@ -137,10 +136,10 @@ public class RoutesMap {
         // Clear all routes from src
         Map<Long, List<Route>> srcMap = routesMap.get(srcMAC);
         if (srcMap != null) {
-            // Removing from by UUID map
+            // Removing from by IDs map
             for(List<Route> routes :srcMap.values()) {
                 for (Route route: routes) {
-                    routeByUUID.remove(route.getId());
+                    routeById.remove(route.getId());
                 }
             }
             routesMap.remove(srcMAC);
@@ -163,10 +162,10 @@ public class RoutesMap {
     public void removeRoutes(long srcMAC, long dstMAC) {
         Map<Long, List<Route>> srcMap = routesMap.get(srcMAC);
         if (srcMap != null) {
-            // Removing from by UUID map
+            // Removing from by IDs map
             for(List<Route> routes :srcMap.values()) {
                 for (Route route: routes) {
-                    routeByUUID.remove(route.getId());
+                    routeById.remove(route.getId());
                 }
             }
             srcMap.remove(dstMAC);
