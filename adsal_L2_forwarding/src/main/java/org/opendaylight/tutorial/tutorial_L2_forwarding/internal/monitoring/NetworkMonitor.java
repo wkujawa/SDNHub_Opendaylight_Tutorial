@@ -50,7 +50,7 @@ public class NetworkMonitor {
     private static final Logger logger = LoggerFactory
             .getLogger(NetworkMonitor.class);
 
-    private final int UPDATE_INTERVAL = 1000;
+    private int mUpdateInteval = 1000;
     private MonitorThread mWorker;
     private IStatisticsManager mStatisticsManager = null;
     private ISwitchManager mSwitchManager = null;
@@ -85,7 +85,7 @@ public class NetworkMonitor {
                 repaint();
 
                 try {
-                    Thread.sleep(UPDATE_INTERVAL);
+                    Thread.sleep(mUpdateInteval);
                 } catch (InterruptedException e) {
                     // Closing thread
                     logger.info("Monitor will be stopped.");
@@ -110,7 +110,7 @@ public class NetworkMonitor {
                 }
             });
         }
-
+        readConfiguration();
         init();
     }
 
@@ -129,6 +129,19 @@ public class NetworkMonitor {
             mFrame.dispose();
         }
     }
+
+    private void readConfiguration() {
+        String updateIntervalStr = System.getProperty("tee.nm.updateInterval", "5");
+
+        if (updateIntervalStr != null) {
+            try {
+                mUpdateInteval = Integer.parseInt(updateIntervalStr) * 1000;
+            } catch (Exception e) {
+            }
+        }
+
+    }
+
 
     private void initGraphView() {
         // The Layout<V, E> is parameterized by the vertex and edge types
