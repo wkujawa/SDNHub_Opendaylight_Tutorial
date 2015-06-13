@@ -936,6 +936,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         Route srcRoute = routesMap.getRouteById(fromRoute);
         Route dstRoute = routesMap.getRouteById(toRoute);
 
+        if (fromRoute == toRoute) {
+            logger.error("Not moving flow if src and dst route are the same.");
+            return false;
+        }
+
         if (srcRoute == null) {
             logger.error("Uknown route "+fromRoute);
             return false;
