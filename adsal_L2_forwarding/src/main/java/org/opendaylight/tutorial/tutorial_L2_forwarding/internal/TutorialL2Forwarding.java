@@ -109,6 +109,9 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     private static short MOVING_TIMEOUT = 10; // idle timeout for flow to be removed
     private static short FLOW_TIMEOUT = 60;  // timeout for ordinary flow
 
+    private static short MOVING_FLOW_PRIORITY = 10;  // priority for flow to be deleted - needed to distinguish from regular flows
+    private static short FLOW_PRIORITY = 100;  // default priority
+
     // Last used id for Route
     private static int lastRouteId = 0;
     // Last used id for LogicalFLow
@@ -565,6 +568,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             dstIP = !reversed ? NetUtils.getInetAddress(ipPacket.getDestinationAddress()).getHostAddress()
                     : NetUtils.getInetAddress(ipPacket.getSourceAddress()).getHostAddress();
             if (useNwProto) {
+                match.setField(new MatchField(MatchType.DL_TYPE, ethpacket.getEtherType())); // Needed to match on NW_PROTO
                 match.setField(new MatchField(MatchType.NW_PROTO, ipPacket.getProtocol()));
             }
             Short tpSrc = null;
@@ -592,11 +596,11 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             }
         }
 
-        match.setField(new MatchField(MatchType.DL_TYPE, ethpacket.getEtherType()));
         match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
-
-        return new LogicalFlow(match, srcIP, dstIP, lastFlowId++);
+        LogicalFlow newFlow = new LogicalFlow(match, srcIP, dstIP, lastFlowId++, FLOW_PRIORITY);
+        logger.debug("Added: {}", newFlow);
+        return newFlow;
     }
 
     private boolean programFlow(NodeConnector connector, Match match) {
@@ -605,6 +609,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
         Flow f = new Flow(match, actions);
         f.setIdleTimeout(FLOW_TIMEOUT);
+        f.setPriority(FLOW_PRIORITY);
         logger.info("Programming flow {} on {}", f, connector.getNode()); //TODO change to debug
 
         Status status = programmer.addFlow(connector.getNode(), f);
@@ -701,7 +706,8 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     if (match.equals(flow.getMatch())) {
                         flowToRemove = flowOnNode.getFlow();
                         flowToRemove.setIdleTimeout(MOVING_TIMEOUT);
-                        logger.info("Setting idle timeout {} s for {}", MOVING_TIMEOUT, flowToRemove);
+                        flowToRemove.setPriority(MOVING_FLOW_PRIORITY);
+                        logger.info("Setting idle timeout {} and priority {} s for {}", MOVING_TIMEOUT, MOVING_FLOW_PRIORITY, flowToRemove);
                         Status status = programmer.addFlow(device.getNode(), flowToRemove);
 
                         if (!status.isSuccess()) {

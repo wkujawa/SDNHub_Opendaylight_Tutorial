@@ -6,6 +6,8 @@ import java.util.LinkedList;
 
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class representing route between two hosts. Identified by ID.
@@ -14,6 +16,8 @@ import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shor
  *
  */
 public class Route implements Comparable<Route>{
+    private static final Logger logger = LoggerFactory.getLogger(Route.class);
+
     private Path<Device, Link> path;
     private boolean isActive = false;
     private long packetsDropped = 0;
@@ -97,7 +101,8 @@ public class Route implements Comparable<Route>{
         Iterator<LogicalFlow> iter = flows.iterator();
         while(iter.hasNext()) {
             LogicalFlow lFlow = iter.next();
-            if (lFlow.getMatch().equals(flow.getMatch())) {
+            if (lFlow.equals(flow)) {
+                logger.debug("Removed: {}", lFlow);
                 iter.remove();
             }
         }
