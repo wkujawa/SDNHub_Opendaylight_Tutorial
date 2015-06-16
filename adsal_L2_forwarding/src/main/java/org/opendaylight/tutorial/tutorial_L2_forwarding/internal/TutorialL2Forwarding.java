@@ -307,7 +307,6 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     // IListenDataPacket
     ////////////////////
     /**
-     * TODO describe what is done
      * When new packet arrives between host H1 and host H2 k-shortest path are found.
      * Same k-paths are added for H1->H2 and H2->H1.
      * Best route from k-path is chosen and programmed for both directions using match
@@ -316,7 +315,12 @@ public class TutorialL2Forwarding implements IListenDataPacket,
      * be enough to manage that flow in future.
      */
     @Override
-    public PacketResult receiveDataPacket(RawPacket inPkt) {
+    public synchronized PacketResult receiveDataPacket(RawPacket inPkt) {
+        /* TODO
+         * So far it is synchronized to avoid multiple programming of same packet.
+         * It would be better to synchronized it individually for src,dst host pairs.
+         * */
+
         if (inPkt == null) {
             return PacketResult.IGNORED;
         }
@@ -349,61 +353,45 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 List<Route> routes = routesMap.getRoutes(srcMAC, dstMAC);
                 HostNodeConnector srcHostConnector = null;
                 HostNodeConnector dstHostConnector = null;
+
+                if (payload instanceof IPv4) {
+                    InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
+                    InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
+
+                    srcHostConnector = findHost(srcMAC, srcIP);
+                    dstHostConnector = findHost(dstMAC, dstIP);
+                } else {
+                    logger.debug("Not IPV4. Not programming.");
+                    return PacketResult.KEEP_PROCESSING;
+                }
+
                 if (routes.isEmpty()) {
-                    if (payload instanceof IPv4) {
-                        InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
-                        InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
-                        logger.info("Discovering.."); //TODO is it better to first query for host ?
-                        Future<HostNodeConnector> fsrc = hostTracker.discoverHost(srcIP);
-                        Future<HostNodeConnector> fdst = hostTracker.discoverHost(dstIP);
-
-                        try {
-                            srcHostConnector = fsrc.get();
-                            dstHostConnector = fdst.get();
-
-                            // Flow leading to host
-                            flowToHost(srcMAC, srcHostConnector.getnodeConnector());
-                            flowToHost(dstMAC, dstHostConnector.getnodeConnector());
-
-                            logger.info("{} () at {}",
-                                    srcIP, Utils.mac2str(srcMAC), srcHostConnector.getnodeconnectorNode().getNodeIDString());
-                            logger.info("{} () at {}",
-                                    dstIP, Utils.mac2str(dstMAC), dstHostConnector.getnodeconnectorNode().getNodeIDString());
-                            arpTable.put(BitBufferHelper.toNumber(srcMAC),srcIP.getHostAddress());
-                            arpTable.put(BitBufferHelper.toNumber(dstMAC),dstIP.getHostAddress());
-
-                            //If both host are connected to same node don't need to find route
-                            if (srcHostConnector.getnodeconnectorNode().equals(dstHostConnector.getnodeconnectorNode())) {
-                                poConnector = dstHostConnector.getnodeConnector();
-                            } else {
-                                logger.info("Looking for k-paths");
-                                routes = pathsToRoutes(networkMonitor.getKShortestPath(srcHostConnector.getnodeconnectorNode(), dstHostConnector.getnodeconnectorNode(),K));
-
-
-                                logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
-                                for (Route route : routes) {
-                                    logger.info("Path:");
-                                    for (Device device : route.getPath().getVertices()) {
-                                        logger.info("Device: "+device);
-                                    }
-                                    logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
-                                }
-                                logger.info("------------------------");
-
-                                routesMap.addRoutes(routes, srcMAC, dstMAC);
-                                routesMap.addRoutes(routes, dstMAC, srcMAC);
-                            }
-                        } catch (InterruptedException | ExecutionException e) {
-                            // TODO Auto-generated catch block
-                            e.printStackTrace();
-                        }
+                    //If both host are connected to same node don't need to find route
+                    if (srcHostConnector.getnodeconnectorNode().equals(dstHostConnector.getnodeconnectorNode())) {
+                        poConnector = dstHostConnector.getnodeConnector();
                     } else {
-                        logger.debug("Not IPV4. Not programming.");
-                        return PacketResult.KEEP_PROCESSING;
+                        logger.info("Looking for k-paths");
+                        routes = pathsToRoutes(networkMonitor.getKShortestPath(srcHostConnector.getnodeconnectorNode(), dstHostConnector.getnodeconnectorNode(),K));
+
+                        logger.info("--- K Shortest Paths ---"); //TODO remove debug logs
+                        for (Route route : routes) {
+                            logger.info("Path:");
+                            for (Device device : route.getPath().getVertices()) {
+                                logger.info("Device: "+device);
+                            }
+                            logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
+                        }
+                        logger.info("------------------------");
+
+                        routesMap.addRoutes(routes, srcMAC, dstMAC);
+                        routesMap.addRoutes(routes, dstMAC, srcMAC);
                     }
                 } else {
-                    srcHostConnector = getHostNodeConnectorByMac(srcMAC);
-                    dstHostConnector = getHostNodeConnectorByMac(dstMAC);
+
+                    //TODO very important - check if logical flow does not already exist
+                    //TODO
+
+                    //if already exist then just send packet out
                 }
 
                 if (poConnector == null) { //Need to program route
@@ -753,6 +741,33 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     ////////////////////////
     // Utilities
     ////////////////////////
+    /**
+     * Finds host in network. If hosts was already found then return cached result.
+     * Else looks by IP address with HostTracker and then program flow to that host.
+     *
+     * @param mac
+     * @param ip
+     * @return HostNodeConnector
+     */
+    private HostNodeConnector findHost(byte[] mac, InetAddress ip) {
+        HostNodeConnector nodeConnector = getHostNodeConnectorByMac(mac);
+        if (nodeConnector == null) {
+            Future<HostNodeConnector> fsrc = hostTracker.discoverHost(ip);
+            try {
+                nodeConnector = fsrc.get();
+                // Flow leading to host
+                flowToHost(mac, nodeConnector.getnodeConnector());
+                logger.info("{} () at {}", ip, Utils.mac2str(mac),
+                        nodeConnector.getnodeconnectorNode().getNodeIDString());
+                arpTable.put(BitBufferHelper.toNumber(mac), ip.getHostAddress());
+            } catch (InterruptedException | ExecutionException e) {
+                logger.error("Error during host discovery");
+                return null;
+            }
+        }
+        return nodeConnector;
+    }
+
     private HostNodeConnector getHostNodeConnectorByMac(byte [] mac) {
         String srcIP = getIP(mac);
         return hostTracker.hostFind(InetAddresses.forString(srcIP));
