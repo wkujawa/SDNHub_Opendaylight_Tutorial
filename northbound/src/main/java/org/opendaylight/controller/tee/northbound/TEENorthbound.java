@@ -5,7 +5,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import javax.ws.rs.GET;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -101,9 +100,8 @@ public class TEENorthbound {
     }
 
     @Path("/move/{fromRoute}/{flow}/{toRoute}")
-    @Produces(MediaType.APPLICATION_JSON)
-    @PUT
-    public void moveFlow(
+    @GET
+    public String moveFlow(
             @PathParam("fromRoute") String fromRoute,
             @PathParam("flow") String flow,
             @PathParam("toRoute") String toRoute) {
@@ -111,8 +109,10 @@ public class TEENorthbound {
         System.out.println("NB :: move flow: "+ flow +" from "+fromRoute+" to "+toRoute);
         if (tee.moveFlow(Integer.parseInt(fromRoute), Integer.parseInt(flow), Integer.parseInt(toRoute))) {
             Response.ok(); // Flow moved
+            return "OK";
         } else {
             Response.serverError(); // Flow not moved - wrong input
+            return "Error";
         }
     }
 
