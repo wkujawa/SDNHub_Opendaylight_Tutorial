@@ -111,6 +111,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
 
     private static short MOVING_FLOW_PRIORITY = 10;  // priority for flow to be deleted - needed to distinguish from regular flows
     private static short FLOW_PRIORITY = 100;  // default priority
+    private static short HOST_FLOW_PRIORITY = 200;  // host flow priority
 
     // Last used id for Route
     private static int lastRouteId = 0;
@@ -350,7 +351,6 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         Utils.mac2str(dstMAC), inPkt.getIncomingNodeConnector()
                                 .getNodeConnectorIDString());
 
-                List<Route> routes = routesMap.getRoutes(srcMAC, dstMAC);
                 HostNodeConnector srcHostConnector = null;
                 HostNodeConnector dstHostConnector = null;
 
@@ -358,13 +358,54 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                     InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
                     InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
 
-                    srcHostConnector = findHost(srcMAC, srcIP);
-                    dstHostConnector = findHost(dstMAC, dstIP);
+                    // Host discovery, known (and programmed) hosts are cached in arpTable
+                    srcHostConnector = arpTable.getNodeConnector(BitBufferHelper.getLong(srcMAC));
+                    Future<HostNodeConnector> fsrc = null;
+                    if (srcHostConnector == null) {
+                        logger.info("Discovering {} ...", srcIP.toString());
+                        fsrc = hostTracker.discoverHost(srcIP);
+                    }
+
+                    dstHostConnector = arpTable.getNodeConnector(BitBufferHelper.getLong(dstMAC));
+                    Future<HostNodeConnector> fdst = null;
+                    if (dstHostConnector == null) {
+                        logger.info("Discovering {} ...", dstIP.toString());
+                        fdst = hostTracker.discoverHost(dstIP);
+                    }
+
+                    if (srcHostConnector == null) {
+                        try {
+                            srcHostConnector = fsrc.get();
+                            // Flow leading to host
+                            flowToHost(srcMAC, srcHostConnector.getnodeConnector());
+                            arpTable.put(BitBufferHelper.toNumber(srcMAC), srcIP.getHostAddress(), srcHostConnector);
+                            logger.info("{} () at {}", srcIP, Utils.mac2str(srcMAC),
+                                    srcHostConnector.getnodeconnectorNode().getNodeIDString());
+                        } catch (InterruptedException | ExecutionException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    }
+
+                    if (dstHostConnector == null) {
+                        try {
+                            dstHostConnector = fdst.get();
+                            // Flow leading to host
+                            flowToHost(dstMAC, dstHostConnector.getnodeConnector());
+                            arpTable.put(BitBufferHelper.toNumber(dstMAC), dstIP.getHostAddress(), dstHostConnector);
+                            logger.info("{} () at {}", dstIP, Utils.mac2str(dstMAC),
+                                    dstHostConnector.getnodeconnectorNode().getNodeIDString());
+                        } catch (InterruptedException | ExecutionException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    }
                 } else {
                     logger.debug("Not IPV4. Not programming.");
                     return PacketResult.KEEP_PROCESSING;
                 }
 
+                List<Route> routes = routesMap.getRoutes(srcMAC, dstMAC);
                 if (routes.isEmpty()) {
                     //If both host are connected to same node don't need to find route
                     if (srcHostConnector.getnodeconnectorNode().equals(dstHostConnector.getnodeconnectorNode())) {
@@ -387,33 +428,33 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         routesMap.addRoutes(routes, dstMAC, srcMAC);
                     }
                 } else {
+                    Match match = makeMatch((Ethernet) packet, false);
+                    boolean found = false;
+                    for (Route route : routes) {
+                        for (LogicalFlow logicalFlow : route.getFlows()) {
+                            if (logicalFlow.equals(match)) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            break;
+                        }
+                    }
 
-                    //TODO very important - check if logical flow does not already exist
-                    //TODO
-
-                    //if already exist then just send packet out
+                    // Route is programmed. Just send packet as Packet-Out.
+                    if (found) {
+                        Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
+                        poConnector = getOutputConnector(bestRoute, srcHostConnector);
+                    }
                 }
 
+                // Program routes in both way for the first time
                 if (poConnector == null) { //Need to program route
                     Route bestRoute = routesMap.getBestRoute(srcMAC, dstMAC);
                     programRouteBidirect((Ethernet) packet, bestRoute);
 
-                    ArrayList<Link> links = bestRoute.getPath().getEdges();
-                    Link link = null;
-                    if (bestRoute.getPath().getTarget().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
-                        // Dst node is on last link
-                        link = links.get(links.size()-1);
-                    } else {
-                        link = links.get(0);
-                    }
-
-                    if (link.getSourceConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
-                        poConnector = link.getSourceConnector();
-                    } else if (link.getDestinationConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
-                        poConnector = link.getDestinationConnector();
-                    } else {
-                        logger.error("Node connector for PacketOut not found. BUG");
-                    }
+                    poConnector = getOutputConnector(bestRoute, srcHostConnector);
                 }
 
                 try {
@@ -452,14 +493,20 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         return ret1 && ret2;
     }
 
-    private boolean flowToHost(byte [] mac, NodeConnector connector) {
+    private Match makeFlowToHostMatch(byte [] mac) {
         Match match = new Match();
         match.setField(new MatchField(MatchType.DL_DST, mac.clone()));
+        return match;
+    }
+
+    private boolean flowToHost(byte [] mac, NodeConnector connector) {
+        Match match = makeFlowToHostMatch(mac);
 
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
 
         Flow f = new Flow(match, actions);
+        f.setPriority(HOST_FLOW_PRIORITY);
 
         logger.info("Programming flow to {} : {}", mac, f);
 
@@ -474,6 +521,29 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         } else {
             return true;
         }
+    }
+
+    private boolean removeFlowToHost(HostNodeConnector connector) {
+        byte [] mac = connector.getDataLayerAddressBytes();
+        Match match = makeFlowToHostMatch(mac);
+        Node node = connector.getnodeconnectorNode();
+        for(FlowOnNode flowOnNode : statisticsManager.getFlows(node)) {
+            Flow flow = flowOnNode.getFlow();
+            if (match.equals(flow.getMatch()) && flow.getPriority() == HOST_FLOW_PRIORITY) {
+                logger.info("Removing flow {}", flow);
+                Status status = programmer.removeFlow(node, flow);
+
+                if (!status.isSuccess()) {
+                    logger.warn(
+                            "SDN Plugin failed to modify the flow: {}. The failure is: {}",
+                            flow, status.getDescription());
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean programRoute(LogicalFlow logicalFlow, Route route) {
@@ -542,19 +612,36 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         return ret;
     }
 
-    private LogicalFlow makeLogicalFlow(Ethernet ethpacket, boolean reversed){
+    private boolean removeFlowFromRoute(LogicalFlow logicalFlow, Route route) {
+        Path<Device, Link> path = route.getPath();
+        for (Device device : path.getVertices()) {
+            Node node = device.getNode();
+            for(FlowOnNode flowOnNode : statisticsManager.getFlows(node)) {
+                Flow flow = flowOnNode.getFlow();
+                if (logicalFlow.equals(flow)) {
+                    logger.info("Removing flow {}", flow);
+                    Status status = programmer.removeFlow(node, flow);
+                    if (!status.isSuccess()) {
+                        logger.warn(
+                                "SDN Plugin failed to modify the flow: {}. The failure is: {}",
+                                flow, status.getDescription());
+                        return false;
+                    } else {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private Match makeMatch(Ethernet ethpacket, boolean reversed){
         Match match = new Match();
         byte[] srcMAC = !reversed ? ethpacket.getSourceMACAddress() : ethpacket.getDestinationMACAddress();
         byte[] dstMAC = !reversed ? ethpacket.getDestinationMACAddress() : ethpacket.getSourceMACAddress();
-        String srcIP = null;
-        String dstIP = null;
         Packet payload = ethpacket.getPayload();
         if (payload instanceof IPv4) {
             IPv4 ipPacket = (IPv4) payload;
-            srcIP = !reversed ? NetUtils.getInetAddress(ipPacket.getSourceAddress()).getHostAddress()
-                    : NetUtils.getInetAddress(ipPacket.getDestinationAddress()).getHostAddress();
-            dstIP = !reversed ? NetUtils.getInetAddress(ipPacket.getDestinationAddress()).getHostAddress()
-                    : NetUtils.getInetAddress(ipPacket.getSourceAddress()).getHostAddress();
             if (useNwProto) {
                 match.setField(new MatchField(MatchType.DL_TYPE, ethpacket.getEtherType())); // Needed to match on NW_PROTO
                 match.setField(new MatchField(MatchType.NW_PROTO, ipPacket.getProtocol()));
@@ -582,10 +669,29 @@ public class TutorialL2Forwarding implements IListenDataPacket,
             if (useTpDst && tpDst != null) {
                 match.setField(new MatchField(MatchType.TP_DST, tpDst));
             }
+        } else {
+            logger.error("Not IPv4 packet. Not making match.");
+            return null;
         }
 
         match.setField(new MatchField(MatchType.DL_SRC, srcMAC.clone()));
         match.setField(new MatchField(MatchType.DL_DST, dstMAC.clone()));
+        return match;
+    }
+
+    private LogicalFlow makeLogicalFlow(Ethernet ethpacket, boolean reversed){
+        Match match = makeMatch(ethpacket, reversed);
+        if (match == null) {
+            return null;
+        }
+
+        Packet payload = ethpacket.getPayload();
+        IPv4 ipPacket = (IPv4) payload;
+        String srcIP = !reversed ? NetUtils.getInetAddress(ipPacket.getSourceAddress()).getHostAddress()
+                : NetUtils.getInetAddress(ipPacket.getDestinationAddress()).getHostAddress();
+        String dstIP = !reversed ? NetUtils.getInetAddress(ipPacket.getDestinationAddress()).getHostAddress()
+                : NetUtils.getInetAddress(ipPacket.getSourceAddress()).getHostAddress();;
+
         LogicalFlow newFlow = new LogicalFlow(match, srcIP, dstIP, lastFlowId++, FLOW_PRIORITY);
         logger.debug("Added: {}", newFlow);
         return newFlow;
@@ -741,31 +847,24 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     ////////////////////////
     // Utilities
     ////////////////////////
-    /**
-     * Finds host in network. If hosts was already found then return cached result.
-     * Else looks by IP address with HostTracker and then program flow to that host.
-     *
-     * @param mac
-     * @param ip
-     * @return HostNodeConnector
-     */
-    private HostNodeConnector findHost(byte[] mac, InetAddress ip) {
-        HostNodeConnector nodeConnector = getHostNodeConnectorByMac(mac);
-        if (nodeConnector == null) {
-            Future<HostNodeConnector> fsrc = hostTracker.discoverHost(ip);
-            try {
-                nodeConnector = fsrc.get();
-                // Flow leading to host
-                flowToHost(mac, nodeConnector.getnodeConnector());
-                logger.info("{} () at {}", ip, Utils.mac2str(mac),
-                        nodeConnector.getnodeconnectorNode().getNodeIDString());
-                arpTable.put(BitBufferHelper.toNumber(mac), ip.getHostAddress());
-            } catch (InterruptedException | ExecutionException e) {
-                logger.error("Error during host discovery");
-                return null;
-            }
+    private NodeConnector getOutputConnector(Route bestRoute, HostNodeConnector srcHostConnector) {
+        ArrayList<Link> links = bestRoute.getPath().getEdges();
+        Link link = null;
+        if (bestRoute.getPath().getTarget().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+            // Dst node is on last link
+            link = links.get(links.size()-1);
+        } else {
+            link = links.get(0);
         }
-        return nodeConnector;
+
+        if (link.getSourceConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+            return link.getSourceConnector();
+        } else if (link.getDestinationConnector().getNode().equals(srcHostConnector.getnodeconnectorNode())) {
+            return link.getDestinationConnector();
+        } else {
+            logger.error("Node connector for PacketOut not found. BUG");
+            return null;
+        }
     }
 
     private HostNodeConnector getHostNodeConnectorByMac(byte [] mac) {
@@ -846,22 +945,43 @@ public class TutorialL2Forwarding implements IListenDataPacket,
     // IfNewHostNotify
     //////////////////
     @Override
-    public void notifyHTClient(HostNodeConnector arg0) {
-        logger.info("notifyHTClient: {} connected to {}", arg0
-                .getNetworkAddressAsString(), arg0.getnodeconnectorNode()
+    public void notifyHTClient(HostNodeConnector hostNodeConnector) {
+        logger.info("notifyHTClient: {} connected to {}", hostNodeConnector
+                .getNetworkAddressAsString(), hostNodeConnector.getnodeconnectorNode()
                 .getNodeIDString());
-        networkMonitor.addHost(arg0);
+        networkMonitor.addHost(hostNodeConnector);
+
+        //If needed update ArpTable and program specila flow to host
+        Long mac = BitBufferHelper.getLong(hostNodeConnector.getDataLayerAddressBytes());
+        String ip = hostNodeConnector.getNetworkAddressAsString();
+        HostNodeConnector entry = arpTable.getNodeConnector(mac);
+        if (entry != null && !entry.equals(hostNodeConnector)) {
+            logger.info("Information about {} changed. Old: {} new: {}", ip, entry, hostNodeConnector);
+            notifyHTClientHostRemoved(entry);
+        }
+        logger.info("Caching new info about {} at {}", ip, hostNodeConnector.getnodeconnectorNode()
+                .getNodeIDString());
+        arpTable.put(mac, ip, hostNodeConnector);
+        flowToHost(hostNodeConnector.getDataLayerAddressBytes(), hostNodeConnector.getnodeConnector());
     }
 
     @Override
-    public void notifyHTClientHostRemoved(HostNodeConnector arg0) {
-        logger.info("notifyHTClientHostRemoved: {} removed from {}", arg0
-                .getNetworkAddressAsString(), arg0.getnodeconnectorNode()
+    public void notifyHTClientHostRemoved(HostNodeConnector hostNodeConnecotr) {
+        logger.info("notifyHTClientHostRemoved: {} removed from {}", hostNodeConnecotr
+                .getNetworkAddressAsString(), hostNodeConnecotr.getnodeconnectorNode()
                 .getNodeIDString());
-        // TODO remove flow
-        networkMonitor.removeHost(arg0);
-        routesMap.removeRoutes(arg0.getDataLayerAddressBytes());
-        arpTable.remove(BitBufferHelper.getLong(arg0.getDataLayerAddressBytes()));
+        byte [] mac = hostNodeConnecotr.getDataLayerAddressBytes();
+        removeFlowToHost(hostNodeConnecotr);
+        networkMonitor.removeHost(hostNodeConnecotr);
+        List<Route> routes = routesMap.getRoutes(mac);
+        for (Route route : routes) {
+            for (LogicalFlow logicalFlow : route.getFlows()) {
+                //Remove logical flow from network
+                removeFlowFromRoute(logicalFlow, route);
+            }
+        }
+        routesMap.removeRoutes(mac);
+        arpTable.remove(BitBufferHelper.getLong(mac));
         // Sanity check
         if (hostTracker.getAllHosts().isEmpty()) {
             //There is no hosts so ARP table and routes map should be empty

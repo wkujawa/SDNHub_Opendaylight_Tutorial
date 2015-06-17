@@ -44,6 +44,12 @@ public class LogicalFlow {
         return result;
     }
 
+    public boolean equals(Match match) {
+        if (this.match.equals(match))
+            return true;
+        return false;
+    }
+
     public boolean equals(Flow flow) {
         if (flow == null) {
             return false;

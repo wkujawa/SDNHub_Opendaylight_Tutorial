@@ -37,6 +37,24 @@ public class RoutesMap {
         }
     }
 
+    public List<Route> getRoutes(byte[] srcMAC) {
+        long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
+        return getRoutes(srcMAC_val);
+    }
+
+    public List<Route> getRoutes(long srcMAC) {
+        Map<Long, List<Route>> srcMap = routesMap.get(srcMAC);
+        List<Route> routes = new LinkedList<Route>();
+        if (srcMap == null) {
+            return routes;
+        } else {
+            for (List<Route> r : srcMap.values()) {
+                routes.addAll(r);
+            }
+        }
+        return routes;
+    }
+
     public List<Route> getRoutes(byte[] srcMAC, byte[] dstMAC) {
         long srcMAC_val = BitBufferHelper.toNumber(srcMAC);
         long dstMAC_val = BitBufferHelper.toNumber(dstMAC);
