@@ -54,7 +54,7 @@ public class LogicalFlow {
         if (flow == null) {
             return false;
         }
-        if (match.equals(flow.getMatch()))
+        if (!match.equals(flow.getMatch()))
             return false;
         if (priority != flow.getPriority())
             return false;
