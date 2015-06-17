@@ -330,7 +330,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         logger.trace("Got packet {}", packet.toString());
 
         if (!(packet instanceof Ethernet)) {
-            logger.debug("Ignoring not ethernet packet");
+            logger.trace("Ignoring not ethernet packet");
             return PacketResult.IGNORED;
         } else {
             NodeConnector poConnector = null;  // Connector for Packet Out
@@ -341,7 +341,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
            if (NetUtils.isBroadcastMACAddr(srcMAC) || NetUtils.isBroadcastMACAddr(dstMAC)) {
                 //logger.info("Broadcast {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
                 //floodPacket(inPkt); //FIXME cannot do that with loops in network
-                logger.debug("Ignoring broadcast packet {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
+                logger.trace("Ignoring broadcast packet {} -> {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
                 return PacketResult.IGNORED;
             }
 
@@ -401,7 +401,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                         }
                     }
                 } else {
-                    logger.debug("Not IPV4. Not programming.");
+                    logger.error("Not IPV4. Not programming.");
                     return PacketResult.KEEP_PROCESSING;
                 }
 
@@ -470,7 +470,7 @@ public class TutorialL2Forwarding implements IListenDataPacket,
                 logger.debug("Packet consumed");
                 return PacketResult.CONSUME;
             }
-            logger.debug("Packet ignored - not IPv4");
+            logger.trace("Packet ignored - not IPv4");
             return PacketResult.IGNORED;
         }
     }
