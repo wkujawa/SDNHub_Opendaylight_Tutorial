@@ -73,6 +73,8 @@
   <logger name="org.opendaylight.controller.switchmanager" level="INFO"/>
   <logger name="org.opendaylight.controller.topologymanager" level="INFO"/>
   <logger name="org.opendaylight.controller.usermanager" level="INFO"/>
+  <logger name="org.opendaylight.tutorial.tutorial_L2_forwarding.internal.TutorialL2Forwarding" level="DEBUG"/>
+  <logger name="org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route" level="DEBUG"/>
   <!-- Web modules -->
   <logger name="org.opendaylight.controller.web" level="INFO"/>
 

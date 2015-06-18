@@ -794,25 +794,25 @@ public class TutorialL2Forwarding implements IListenDataPacket,
         while(reverse ? listIterator.hasPrevious() : listIterator.hasNext()) {
             Device device = reverse ? listIterator.previous() : listIterator.next();
             if (!newDevices.contains(device)) {
-                Flow flowToRemove = null;
+                Flow flowShort = null;
                 for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
                     Flow flow = flowOnNode.getFlow();
                     if (match.equals(flow.getMatch())) {
-                        flowToRemove = flowOnNode.getFlow();
-                        flowToRemove.setIdleTimeout(MOVING_TIMEOUT);
-                        flowToRemove.setPriority(MOVING_FLOW_PRIORITY);
-                        logger.info("Setting idle timeout {} and priority {} s for {}", MOVING_TIMEOUT, MOVING_FLOW_PRIORITY, flowToRemove);
-                        Status status = programmer.addFlow(device.getNode(), flowToRemove);
+                        flowShort = flow.clone();
+                        flowShort.setIdleTimeout(MOVING_TIMEOUT);
+                        flowShort.setPriority(MOVING_FLOW_PRIORITY);
+                        logger.info("Setting idle timeout {} and priority {} s for {}", MOVING_TIMEOUT, MOVING_FLOW_PRIORITY, flowShort);
+                        Status status = programmer.modifyFlow(device.getNode(), flow, flowShort);
 
                         if (!status.isSuccess()) {
                             logger.warn(
                                     "SDN Plugin failed to modify the flow: {}. The failure is: {}",
-                                    flowToRemove, status.getDescription());
+                                    flowShort, status.getDescription());
                             ret = false;
                         }
                     }
                 }
-                if (flowToRemove == null) {
+                if (flowShort == null) {
                     logger.error("Didn't find flow for match: {} on {}", match, device.getNode());
                     ret = false;
                 }
