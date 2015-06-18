@@ -306,6 +306,10 @@ public class TEE implements IListenDataPacket,
         if (FLOW_TIMEOUT == MOVING_TIMEOUT && FLOW_TIMEOUT != 0) {
             throw new RuntimeException("Check config.ini. FlowTimeout and MovingTimeout cannot be tha same.");
         }
+
+        if (FLOW_TIMEOUT == 0) {
+            throw new RuntimeException("Check config.ini. FlowTimeout cannot be 0, because setting idle timeout later will not work. Why? ");
+        }
     }
 
     ////////////////////
