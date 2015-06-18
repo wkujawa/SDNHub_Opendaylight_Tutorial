@@ -110,7 +110,6 @@ public class TEE implements IListenDataPacket,
     private static short MOVING_TIMEOUT = 10; // idle timeout for flow to be removed
     private static short FLOW_TIMEOUT = 60;  // timeout for ordinary flow
 
-    private static short MOVING_FLOW_PRIORITY = 10;  // priority for flow to be deleted - needed to distinguish from regular flows
     private static short FLOW_PRIORITY = 100;  // default priority
     private static short HOST_FLOW_PRIORITY = 200;  // host flow priority
 
@@ -302,6 +301,10 @@ public class TEE implements IListenDataPacket,
                 FLOW_TIMEOUT = Short.parseShort(flowTimeoutStr);
             } catch (Exception e) {
             }
+        }
+
+        if (FLOW_TIMEOUT == MOVING_TIMEOUT && FLOW_TIMEOUT != 0) {
+            throw new RuntimeException("Check config.ini. FlowTimeout and MovingTimeout cannot be tha same.");
         }
     }
 
@@ -801,9 +804,8 @@ public class TEE implements IListenDataPacket,
                     if (match.equals(flow.getMatch())) {
                         flowShort = flow.clone();
                         flowShort.setIdleTimeout(MOVING_TIMEOUT);
-                        flowShort.setPriority(MOVING_FLOW_PRIORITY);
-                        logger.info("Setting idle timeout {} and priority {} s for {}", MOVING_TIMEOUT, MOVING_FLOW_PRIORITY, flowShort);
-                        Status status = programmer.modifyFlow(device.getNode(), flow, flowShort);
+                        logger.info("Setting idle timeout {} by flow add for {}", MOVING_TIMEOUT, flowShort);
+                        Status status = programmer.addFlow(device.getNode(), flowShort);
 
                         if (!status.isSuccess()) {
                             logger.warn(
@@ -1121,8 +1123,14 @@ public class TEE implements IListenDataPacket,
     //////////////////////////
     @Override
     public void flowRemoved(Node node, Flow flow) {
+        logger.info("Flow removed {} from {}",flow, node);
+        // Recognizing old flows that was moved to other route by timeout
+        // Cannot do it with priority because that either will create new flow
+        // or with flow mod cause flow removed message for original flow
+        if (flow.getIdleTimeout() == MOVING_TIMEOUT) {
+            return;
+        }
         routesMap.removeFlow(flow);
-        logger.info("Flow removed "+flow);
     }
 
     @Override
