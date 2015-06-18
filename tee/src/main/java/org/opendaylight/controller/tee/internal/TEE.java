@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 SDN Hub
-   Copyright (C) 2014, 2015 Wiktor Kujawa
+   Copyright (C) 2015 Wiktor Kujawa
 
  Licensed under the GNU GENERAL PUBLIC LICENSE, Version 3.
  You may not use this file except in compliance with this License.
