@@ -1,7 +1,7 @@
 package org.opendaylight.controller.tee.northbound;
 
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Utils;
+import org.opendaylight.controller.tee.internal.monitoring.Utils;
 
 /**
  * @author Wiktor Kujawa

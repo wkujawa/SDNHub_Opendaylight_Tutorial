@@ -1,17 +1,17 @@
 /**
  * Interface of Traffic Engineering Engine
  */
-package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
+package org.opendaylight.controller.tee.internal;
 
 import java.util.Collection;
 import java.util.Set;
 
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.LogicalFlow;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
+import org.opendaylight.controller.tee.internal.monitoring.Device;
+import org.opendaylight.controller.tee.internal.monitoring.Link;
+import org.opendaylight.controller.tee.internal.monitoring.LogicalFlow;
+import org.opendaylight.controller.tee.internal.monitoring.NetworkMonitor;
+import org.opendaylight.controller.tee.internal.monitoring.Route;
 
 /**
  * @author Wiktor Kujawa

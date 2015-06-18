@@ -15,11 +15,11 @@ import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.northbound.commons.RestMessages;
 import org.opendaylight.controller.northbound.commons.exception.ServiceUnavailableException;
 import org.opendaylight.controller.sal.utils.ServiceHelper;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.ITEE;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.LogicalFlow;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
+import org.opendaylight.controller.tee.internal.ITEE;
+import org.opendaylight.controller.tee.internal.monitoring.Device;
+import org.opendaylight.controller.tee.internal.monitoring.Link;
+import org.opendaylight.controller.tee.internal.monitoring.LogicalFlow;
+import org.opendaylight.controller.tee.internal.monitoring.Route;
 
 @Path("/")
 public class TEENorthbound {

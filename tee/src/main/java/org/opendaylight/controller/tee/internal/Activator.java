@@ -7,7 +7,7 @@
  * and is available at http://www.eclipse.org/legal/epl-v10.html
  */
 
-package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
+package org.opendaylight.controller.tee.internal;
 
 import java.util.Dictionary;
 import java.util.Hashtable;
@@ -64,7 +64,7 @@ public class Activator extends ComponentActivatorAbstractBase {
      */
     @Override
     public Object[] getImplementations() {
-        Object[] res = { TutorialL2Forwarding.class };
+        Object[] res = { TEE.class };
         return res;
     }
 
@@ -83,11 +83,11 @@ public class Activator extends ComponentActivatorAbstractBase {
      */
     @Override
     public void configureInstance(Component c, Object imp, String containerName) {
-        if (imp.equals(TutorialL2Forwarding.class)) {
+        if (imp.equals(TEE.class)) {
             // export the services
             Dictionary<String, String> props = new Hashtable<String, String>();
-            props.put("salListenerName", "tutorial_L2_forwarding");
-            props.put("topoListenerName", "tutorial_L2_forwarding");
+            props.put("salListenerName", "tee");
+            props.put("topoListenerName", "tee");
             c.setInterface(new String[] { IListenDataPacket.class.getName(),
                             ITopologyManagerAware.class.getName(),
                             IfNewHostNotify.class.getName(),

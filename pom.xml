@@ -16,7 +16,7 @@
   <url>http://sdnhub.org/tutorials/opendaylight</url>
   <modules>
     <module>commons/parent</module>
-    <module>adsal_L2_forwarding</module>
+    <module>tee</module>
     <module>northbound</module>
     <module>distribution/opendaylight-osgi-adsal</module>
     <module>distribution/opendaylight-karaf</module>

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014 SDN Hub
+   Copyright (C) 2014, 2015 Wiktor Kujawa
 
  Licensed under the GNU GENERAL PUBLIC LICENSE, Version 3.
  You may not use this file except in compliance with this License.
@@ -15,7 +16,7 @@
  *
  */
 
-package org.opendaylight.tutorial.tutorial_L2_forwarding.internal;
+package org.opendaylight.controller.tee.internal;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -64,17 +65,17 @@ import org.opendaylight.controller.sal.utils.Status;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
+import org.opendaylight.controller.tee.internal.monitoring.ArpTable;
+import org.opendaylight.controller.tee.internal.monitoring.Device;
+import org.opendaylight.controller.tee.internal.monitoring.Link;
+import org.opendaylight.controller.tee.internal.monitoring.LogicalFlow;
+import org.opendaylight.controller.tee.internal.monitoring.NetworkMonitor;
+import org.opendaylight.controller.tee.internal.monitoring.Route;
+import org.opendaylight.controller.tee.internal.monitoring.RoutesMap;
+import org.opendaylight.controller.tee.internal.monitoring.Utils;
+import org.opendaylight.controller.tee.internal.monitoring.shortestpath.Path;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.ArpTable;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Device;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Link;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.LogicalFlow;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.NetworkMonitor;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Route;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.RoutesMap;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.Utils;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -84,11 +85,11 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.net.InetAddresses;
 
-public class TutorialL2Forwarding implements IListenDataPacket,
+public class TEE implements IListenDataPacket,
         ITopologyManagerAware, IfNewHostNotify, IInventoryListener,
         IFlowProgrammerListener,ITEE{
     private static final Logger logger = LoggerFactory
-            .getLogger(TutorialL2Forwarding.class);
+            .getLogger(TEE.class);
     private ISwitchManager switchManager = null;
     private IFlowProgrammerService programmer = null;
     private IDataPacketService dataPacketService = null;

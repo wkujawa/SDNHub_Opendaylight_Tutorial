@@ -1,11 +1,11 @@
-package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
+package org.opendaylight.controller.tee.internal.monitoring;
 
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
 
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
+import org.opendaylight.controller.tee.internal.monitoring.shortestpath.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

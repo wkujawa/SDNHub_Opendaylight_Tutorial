@@ -1,4 +1,4 @@
-package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
+package org.opendaylight.controller.tee.internal.monitoring;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -30,8 +30,8 @@ import org.opendaylight.controller.sal.reader.NodeConnectorStatistics;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.DijkstraKShortestPath;
-import org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath.Path;
+import org.opendaylight.controller.tee.internal.monitoring.shortestpath.DijkstraKShortestPath;
+import org.opendaylight.controller.tee.internal.monitoring.shortestpath.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

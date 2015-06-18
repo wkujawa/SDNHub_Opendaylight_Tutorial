@@ -1,4 +1,4 @@
-package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring.shortestpath;
+package org.opendaylight.controller.tee.internal.monitoring.shortestpath;
 
 import java.util.HashMap;
 import java.util.LinkedList;

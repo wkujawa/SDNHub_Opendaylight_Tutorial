@@ -1,4 +1,4 @@
-package org.opendaylight.tutorial.tutorial_L2_forwarding.internal.monitoring;
+package org.opendaylight.controller.tee.internal.monitoring;
 
 public class Port {
     public final static String FAKE_PORT = "FakePort";
