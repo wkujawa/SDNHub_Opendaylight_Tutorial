@@ -18,7 +18,7 @@ package org.opendaylight.controller.tee.internal.monitoring;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.controller.tee.internal.monitoring.shortestpath.Path;
@@ -41,7 +41,7 @@ public class Route implements Comparable<Route>{
     private long bandwidth = 0;
     private long cost = 0;
     private final int id;
-    private Collection<LogicalFlow> flows = new LinkedList<LogicalFlow>();
+    private Collection<LogicalFlow> flows = new ConcurrentLinkedDeque<LogicalFlow>();
 
     public Route(Path<Device, Link> p, int id) {
         this.id = id;
