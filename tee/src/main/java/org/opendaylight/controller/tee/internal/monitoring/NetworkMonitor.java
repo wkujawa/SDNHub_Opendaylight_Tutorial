@@ -162,7 +162,8 @@ public class NetworkMonitor {
     private void initGraphView() {
         // The Layout<V, E> is parameterized by the vertex and edge types
         mVisualizer = new FRLayout<Device, Link>(mGraph);
-        mVisualizer.setSize(new Dimension(300, 300)); // sets the initial size
+        mVisualizer.initialize();
+        mVisualizer.setSize(new Dimension(650, 650)); // sets the initial size
                                                       // of the space
         mVisualizationViewer = new VisualizationViewer<Device, Link>(
                 mVisualizer);
@@ -278,6 +279,8 @@ public class NetworkMonitor {
         });
         if (!GraphicsEnvironment.isHeadless()) {
             mFrame = new JFrame("NetworkMonitor");
+            mFrame.setAlwaysOnTop(true);
+            mFrame.setLocationByPlatform(true);
             mFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             mFrame.getContentPane().add(mVisualizationViewer);
             mFrame.pack();
