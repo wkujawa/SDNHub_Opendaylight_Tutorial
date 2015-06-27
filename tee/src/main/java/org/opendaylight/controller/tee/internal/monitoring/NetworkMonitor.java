@@ -167,8 +167,6 @@ public class NetworkMonitor {
                                                       // of the space
         mVisualizationViewer = new VisualizationViewer<Device, Link>(
                 mVisualizer);
-        // BasicVisualizationServer<Device, Link> vv = new
-        // BasicVisualizationServer<Device, Link>(layout);
         mVisualizationViewer.setPreferredSize(new Dimension(650, 650));
 
         DefaultModalGraphMouse<Device, Link> graphMouse = new DefaultModalGraphMouse<Device, Link>();
@@ -203,6 +201,7 @@ public class NetworkMonitor {
 
         // Coloring
         // Nodes
+        mVisualizationViewer.getRenderContext().setVertexIconTransformer(new VertexIconTransformer());
         Transformer<Device, Paint> vertexPaint = new Transformer<Device, Paint>() {
             @Override
             public Paint transform(Device device) {
