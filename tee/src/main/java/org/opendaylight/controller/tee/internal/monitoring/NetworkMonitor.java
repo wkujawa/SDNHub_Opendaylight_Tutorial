@@ -180,7 +180,7 @@ public class NetworkMonitor {
                     @Override
                     public String transform(Device device) {
                         StringBuilder builder = new StringBuilder();
-                        builder.append("<html><center>"+device.getId());
+                        builder.append("<html><center><br><br><br><br>"+(device.getType()==DeviceType.HOST?"<br>":"")+device.getId());
                         //for (FlowStatistics flowStatistics : device.getFlowStatistics()) {
                         //    builder.append("<p>"+flowStatistics.getFlow().getMatch()+" usage: "+Utils.printWithUnit(flowStatistics.getUsage()));
                         //}
@@ -194,7 +194,7 @@ public class NetworkMonitor {
                         StringBuilder builder = new StringBuilder();
                         builder.append("<html><center>"+Utils.printWithUnit(link.getUsage()));
                         builder.append("<p>["+new DecimalFormat("#.#").format((double)link.getUsage()/(double)link.getBandwidth()*100) +"% ]");
-                        builder.append("<p>w:"+mTransformer.transform(link)+" Drops:"+link.getDropCount());
+                        //builder.append("<p>w:"+mTransformer.transform(link)+" Drops:"+link.getDropCount());
                         return builder.toString();
                     }
                 });
