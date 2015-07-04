@@ -139,9 +139,11 @@ public class Route implements Comparable<Route>{
         availableBandwidth = Long.MAX_VALUE;
         for (Link link : path.getEdges()) {
             availableBandwidth = Math.min(availableBandwidth,
-                    link.getBandwidth() - link.getUsage());
+                    2*link.getBandwidth() - link.getUsage());
         }
-        cost = path.getHops() + Utils.MB*100 - availableBandwidth;
+        int bwpartSquare = (int) ((2*Utils.MB*100 - availableBandwidth) / Utils.MB);
+        bwpartSquare *= bwpartSquare;
+        cost = path.getHops() /*+ flows.size()*/ + bwpartSquare;
     }
 
     @Override

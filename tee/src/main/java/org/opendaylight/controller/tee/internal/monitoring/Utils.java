@@ -19,7 +19,7 @@ package org.opendaylight.controller.tee.internal.monitoring;
 import java.text.DecimalFormat;
 
 public class Utils {
-    public final static long BASE = 1024; // TODO is that base in OpenFlow, etc.
+    public final static long BASE = 1000; // TODO is that base in OpenFlow, etc.
     public final static long KB = BASE,
             MB = KB * BASE,
             GB = MB * BASE,

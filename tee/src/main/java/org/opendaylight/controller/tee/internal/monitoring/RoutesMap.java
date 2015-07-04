@@ -104,8 +104,10 @@ public class RoutesMap {
 
     public Route getBestRoute(byte[] srcMAC, byte[] dstMAC) {
         List<Route> routes = getRoutes(srcMAC, dstMAC);
+        logger.debug("Looking for best path:");
         for (Route route : routes) {
             route.evaluate();
+            logger.debug(route.toString());
         }
         Collections.sort(routes);
         return routes.get(0);
