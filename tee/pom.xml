@@ -45,7 +45,7 @@
   </build>
   <dependencies>
     <!-- south bound plugins -->
-    <dependency>
+<!--    <dependency>
       <groupId>org.sdnhub.odl</groupId>
       <artifactId>ofbroker</artifactId>
       <version>${sdnhub.of_plugins.version}</version>
@@ -60,6 +60,7 @@
       <artifactId>protocol_plugins.openflow10</artifactId>
       <version>${sdnhub.of_plugins.version}</version>
     </dependency>
+-->
 
     <!-- other modules -->
     <dependency>

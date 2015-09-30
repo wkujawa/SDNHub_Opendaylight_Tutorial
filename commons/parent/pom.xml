@@ -220,11 +220,12 @@
 
   <dependencies>
     <!-- SDNHub common artifacts -->
-    <dependency>
+ <!--   <dependency>
        <groupId>org.sdnhub.odl</groupId>
        <artifactId>web.brandfragment</artifactId>
        <version>${brandfragment.version}</version>
     </dependency>
+-->
     <!-- Other common bundles -->
     <dependency>
       <groupId>ch.qos.logback</groupId>
