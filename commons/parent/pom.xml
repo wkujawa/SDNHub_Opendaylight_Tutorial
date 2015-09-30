@@ -21,7 +21,7 @@
 
   <properties>
     <!-- General properties -->
-    <sdnhubnexus>http://repo.sdnhub.org:8080/nexus/content</sdnhubnexus>
+   <!-- <sdnhubnexus>http://repo.sdnhub.org:8080/nexus/content</sdnhubnexus> -->
     <nexusproxy>http://nexus.opendaylight.org/content</nexusproxy>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version.source>1.7</java.version.source>
@@ -180,7 +180,7 @@
       </snapshots>
     </repository>
     <!-- SDNHub Public Repo group -->
-    <repository>
+    <!--<repository>
       <id>sdnhub-nexus</id>
       <name>sdnhub</name>
       <url>http://repo.sdnhub.org:8080/nexus/content/groups/public</url>
@@ -190,7 +190,7 @@
       <snapshots>
         <enabled>true</enabled>
       </snapshots>
-    </repository>
+    </repository>-->
   </repositories>
 
   <pluginRepositories>

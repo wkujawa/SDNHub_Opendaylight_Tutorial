@@ -43,6 +43,14 @@ http://maven.apache.org/maven-v4_0_0.xsd">
         <version>${sdnhub.of_plugins.version}</version>
     </dependency>
 -->  
+
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>protocol_plugins.openflow</artifactId>
+      <version>${protocol_plugins.openflow.version}</version>
+    </dependency>
+
+
     <!-- ODL Web -->
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
