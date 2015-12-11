@@ -19,7 +19,7 @@
     <module>tee</module>
     <module>northbound</module>
     <module>distribution/opendaylight-osgi-adsal</module>
-    <module>distribution/opendaylight-karaf</module>
+<!--    <module>distribution/opendaylight-karaf</module> -->
   </modules>
 
 </project>

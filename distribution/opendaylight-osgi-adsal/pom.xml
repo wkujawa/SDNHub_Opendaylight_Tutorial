@@ -26,24 +26,6 @@ http://maven.apache.org/maven-v4_0_0.xsd">
       <version>${tee.northbound.version}</version>
     </dependency>
 
-    <!-- SDNHub Artifacts -->
-<!--    <dependency>
-      <groupId>org.sdnhub.odl</groupId>
-      <artifactId>ofbroker</artifactId>
-        <version>${sdnhub.of_plugins.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sdnhub.odl</groupId>
-      <artifactId>protocol_plugins.openflow13</artifactId>
-        <version>${sdnhub.of_plugins.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sdnhub.odl</groupId>
-      <artifactId>protocol_plugins.openflow10</artifactId>
-        <version>${sdnhub.of_plugins.version}</version>
-    </dependency>
--->  
-
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>protocol_plugins.openflow</artifactId>
@@ -126,7 +108,7 @@ http://maven.apache.org/maven-v4_0_0.xsd">
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>containermanager.implementation</artifactId>
-      <version>${containermanager.implementation.version}</version>
+      <version>${containermanager.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
@@ -268,7 +250,7 @@ http://maven.apache.org/maven-v4_0_0.xsd">
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>connectionmanager.northbound</artifactId>
-      <version>${connectionmanager.northbound.version}</version>
+      <version>${connectionmanager.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opendaylight.controller</groupId>

@@ -44,49 +44,26 @@
     </plugins>
   </build>
   <dependencies>
-    <!-- south bound plugins -->
-<!--    <dependency>
-      <groupId>org.sdnhub.odl</groupId>
-      <artifactId>ofbroker</artifactId>
-      <version>${sdnhub.of_plugins.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sdnhub.odl</groupId>
-      <artifactId>protocol_plugins.openflow13</artifactId>
-      <version>${sdnhub.of_plugins.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sdnhub.odl</groupId>
-      <artifactId>protocol_plugins.openflow10</artifactId>
-      <version>${sdnhub.of_plugins.version}</version>
-    </dependency>
--->
-
     <!-- other modules -->
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>switchmanager</artifactId>
-      <version>${switchmanager.api.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>topologymanager</artifactId>
-      <version>${topologymanager.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>statisticsmanager</artifactId>
-      <version>${statisticsmanager.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>sal</artifactId>
-      <version>${sal.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>hosttracker</artifactId>
-      <version>${hosttracker.implementation.version}</version>
     </dependency>
 
     <!-- third party -->
@@ -110,6 +87,22 @@
       <groupId>net.sf.jung</groupId>
       <artifactId>jung-algorithms</artifactId>
       <version>2.0.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.felix</groupId>
+      <artifactId>org.apache.felix.dependencymanager</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
     </dependency>
   </dependencies>
 </project>
