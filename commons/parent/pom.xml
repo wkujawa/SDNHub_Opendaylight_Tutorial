@@ -33,6 +33,8 @@
     <!-- 3rd Pary Dependency Versions -->
     <sf.net.jung2.version>2.0.1</sf.net.jung2.version>
     <spring.current.version>4.0.2.RELEASE</spring.current.version>
+    <spring.mock.version>2.0.8</spring.mock.version>
+    <felix.gogo.version>0.8.0</felix.gogo.version>
   </properties>
 
   <build>
