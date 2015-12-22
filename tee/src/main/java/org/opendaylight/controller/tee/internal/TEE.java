@@ -899,10 +899,12 @@ public class TEE implements IListenDataPacket,
         logger.info("Emptiness sanity check..");
         if (!routesMap.isEmpty()) {
             logger.error("FAILED. RoutesMap is not empty, but last host have been removed.");
+            //TODO print routes map
             return false;
         }
         if (!arpTable.isEmpty()) {
             logger.error("FAILED. ArpTable is not empty, but last host have been removed.");
+            arpTable.debugPrint();
             return false;
         }
         logger.info("PASSED");

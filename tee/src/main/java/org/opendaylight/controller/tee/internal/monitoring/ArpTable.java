@@ -19,8 +19,9 @@
  */
 package org.opendaylight.controller.tee.internal.monitoring;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.slf4j.Logger;
@@ -32,9 +33,9 @@ import org.slf4j.LoggerFactory;
  */
 public class ArpTable {
     private static final Logger logger = LoggerFactory.getLogger(ArpTable.class);
-    private Map<String, Long> IpToMac = new HashMap<String, Long>();
-    private Map<Long, String> MacToIp = new HashMap<Long, String>();
-    private Map<Long, HostNodeConnector> MacToNodeConnector = new HashMap<Long, HostNodeConnector>();
+    private Map<String, Long> IpToMac = new ConcurrentHashMap<String, Long>();
+    private Map<Long, String> MacToIp = new ConcurrentHashMap<Long, String>();
+    private Map<Long, HostNodeConnector> MacToNodeConnector = new ConcurrentHashMap<Long, HostNodeConnector>();
 
     /**
      *
@@ -45,7 +46,7 @@ public class ArpTable {
     public boolean isEmpty() {
         if (IpToMac.isEmpty() && MacToIp.isEmpty()) {
             return true;
-        } else if (!IpToMac.isEmpty() && ! MacToIp.isEmpty()) {
+        } else if (!IpToMac.isEmpty() && !MacToIp.isEmpty()) {
             return false;
         } else {
             logger.error("Something is wrong, one map is empty and one not.");
@@ -83,5 +84,16 @@ public class ArpTable {
         IpToMac.clear();
         MacToIp.clear();
         MacToNodeConnector.clear();
+    }
+
+    public void debugPrint() {
+        logger.info("--------------IpToMac--------------");
+        for (Entry<String, Long> entry : IpToMac.entrySet()) {
+            logger.info(">> "+entry.getKey().toString()+" : "+Utils.mac2str(entry.getValue()));
+        }
+        logger.info("--------------MacToIP--------------");
+        for (Entry<Long, String> entry : MacToIp.entrySet()) {
+            logger.info(">> "+Utils.mac2str(entry.getKey())+" : "+entry.getValue().toString());
+        }
     }
 }

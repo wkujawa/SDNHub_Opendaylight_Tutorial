@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
 import org.opendaylight.controller.sal.match.MatchField;
@@ -36,8 +37,8 @@ public class RoutesMap {
     private Map<Integer, Route> routeById;
 
     public RoutesMap() {
-        routesMap = new HashMap<Long, Map<Long,List<Route>>>();
-        routeById = new HashMap<Integer, Route>();
+        routesMap = new ConcurrentHashMap<Long, Map<Long,List<Route>>>();
+        routeById = new ConcurrentHashMap<Integer, Route>();
     }
 
     public boolean isEmpty() {
