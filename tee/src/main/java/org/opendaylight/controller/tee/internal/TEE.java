@@ -34,6 +34,7 @@ import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
+import org.opendaylight.controller.sal.action.Enqueue;
 import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.ConstructionException;
 import org.opendaylight.controller.sal.core.Edge;
@@ -512,6 +513,7 @@ public class TEE implements IListenDataPacket,
 
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
+        actions.add(new Enqueue(connector, 2)); //TODO put in queue 2 //OF1.0 specific
 
         Flow f = new Flow(match, actions);
         f.setPriority(HOST_FLOW_PRIORITY);
@@ -708,6 +710,7 @@ public class TEE implements IListenDataPacket,
     private boolean programFlow(NodeConnector connector, Match match) {
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
+        actions.add(new Enqueue(connector, 2)); // TODO queues WiP
 
         Flow f = new Flow(match, actions);
         f.setIdleTimeout(FLOW_TIMEOUT);
@@ -1008,6 +1011,8 @@ public class TEE implements IListenDataPacket,
         switch (arg1) {
         case ADDED:
             networkMonitor.addDevice(arg0);
+            // TODO // configure queues for QoS
+
             break;
         case CHANGED:
             //TODO
