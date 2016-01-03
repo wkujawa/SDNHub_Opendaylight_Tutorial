@@ -125,10 +125,10 @@ public class TEENorthbound {
         System.out.println("NB :: move flow: "+ flow +" from "+fromRoute+" to "+toRoute);
         if (tee.moveFlow(Integer.parseInt(fromRoute), Integer.parseInt(flow), Integer.parseInt(toRoute))) {
             Response.ok(); // Flow moved
-            return "OK";
+            return "{\"result\":\"OK\"}";
         } else {
             Response.serverError(); // Flow not moved - wrong input
-            return "Error";
+            return "{\"result\":\"ERROR\"}";
         }
     }
 
@@ -141,10 +141,10 @@ public class TEENorthbound {
         System.out.println("NB :: changeQueue of flow: "+ flow +" to "+queue);
         if (tee.changeQueue(Integer.parseInt(flow), Integer.parseInt(queue))) {
             Response.ok(); // Queue changed
-            return "OK";
+            return "{\"result\":\"OK\"}";
         } else {
             Response.serverError(); // Queue not changed - wrong input
-            return "Error";
+            return "{\"result\":\"ERROR\"}";
         }
     }
 
