@@ -24,6 +24,7 @@ import org.opendaylight.controller.switchmanager.IInventoryListener;
 import org.opendaylight.controller.switchmanager.ISwitchManager;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.opendaylight.ovsdb.plugin.api.OvsdbConfigurationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,6 +124,11 @@ public class Activator extends ComponentActivatorAbstractBase {
                     .setService(IfIptoHost.class)
                     .setCallbacks("setHostTracker",
                             "unsetHostTracker").setRequired(true));
+
+            c.add(createServiceDependency()
+                    .setService(OvsdbConfigurationService.class)
+                    .setCallbacks("setOVSDBConfigService", "unsetOVSDBConfigService")
+                    .setRequired(true));
         }
     }
 }

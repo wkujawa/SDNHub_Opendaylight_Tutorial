@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -62,6 +63,7 @@ import org.opendaylight.controller.sal.reader.FlowOnNode;
 import org.opendaylight.controller.sal.topology.TopoEdgeUpdate;
 import org.opendaylight.controller.sal.utils.EtherTypes;
 import org.opendaylight.controller.sal.utils.NetUtils;
+import org.opendaylight.controller.sal.utils.ServiceHelper;
 import org.opendaylight.controller.sal.utils.Status;
 import org.opendaylight.controller.statisticsmanager.IStatisticsManager;
 import org.opendaylight.controller.switchmanager.IInventoryListener;
@@ -77,6 +79,13 @@ import org.opendaylight.controller.tee.internal.monitoring.Utils;
 import org.opendaylight.controller.tee.internal.monitoring.shortestpath.Path;
 import org.opendaylight.controller.topologymanager.ITopologyManager;
 import org.opendaylight.controller.topologymanager.ITopologyManagerAware;
+import org.opendaylight.ovsdb.lib.OvsdbConnectionInfo;
+import org.opendaylight.ovsdb.lib.notation.Row;
+import org.opendaylight.ovsdb.lib.notation.UUID;
+import org.opendaylight.ovsdb.lib.schema.GenericTableSchema;
+import org.opendaylight.ovsdb.plugin.api.Connection;
+import org.opendaylight.ovsdb.plugin.api.OvsdbConfigurationService;
+import org.opendaylight.ovsdb.plugin.api.OvsdbConnectionService;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.BundleException;
@@ -98,6 +107,10 @@ public class TEE implements IListenDataPacket,
     private IStatisticsManager statisticsManager = null;
     private IfIptoHost hostTracker = null;
     private NetworkMonitor networkMonitor = null;
+    private OvsdbConfigurationService ovsdbConfigService = null;
+
+    private String databaseName = "Open_vSwitch";
+
 
     private int K = 5;
     private RoutesMap routesMap = new RoutesMap();
@@ -187,6 +200,17 @@ public class TEE implements IListenDataPacket,
         }
     }
 
+    void setOVSDBConfigService(OvsdbConfigurationService service) {
+        logger.info("Set OVSDBConfigService: {}", service);
+        this.ovsdbConfigService = service;
+    }
+
+    void unsetOVSDBConfigService(OvsdbConfigurationService service) {
+        if (this.ovsdbConfigService == service) {
+            logger.info("Unset OVSDBConfigService: {}", service);
+            this.ovsdbConfigService = null;
+        }
+    }
     /**
      * Function called by the dependency manager when all the required
      * dependencies are satisfied
@@ -209,6 +233,8 @@ public class TEE implements IListenDataPacket,
                 }
             }
         }
+
+        //OvsdbConfigService ovsdbTable = (OvsdbConfigService)ServiceHelper.getGlobalInstance(OvsdbConfigService.class, this);
 
         readConfiguration();
 
@@ -513,7 +539,7 @@ public class TEE implements IListenDataPacket,
 
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
-        actions.add(new Enqueue(connector, 2)); //TODO put in queue 2 //OF1.0 specific
+        actions.add(new Enqueue(connector, 0)); //TODO put in queue 2 //OF1.0 specific
 
         Flow f = new Flow(match, actions);
         f.setPriority(HOST_FLOW_PRIORITY);
@@ -710,7 +736,7 @@ public class TEE implements IListenDataPacket,
     private boolean programFlow(NodeConnector connector, Match match) {
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
-        actions.add(new Enqueue(connector, 2)); // TODO queues WiP
+        actions.add(new Enqueue(connector, 0)); // TODO queues WiP
 
         Flow f = new Flow(match, actions);
         f.setIdleTimeout(FLOW_TIMEOUT);
@@ -1008,11 +1034,44 @@ public class TEE implements IListenDataPacket,
     public void notifyNode(Node arg0, UpdateType arg1,
             Map<String, Property> arg2) {
         logger.info("notifyNode id: {} type {}", arg0.getNodeIDString(), arg1);
+
+//        Map<UUID, Row<GenericTableSchema>> ports = null;
+//        logger.info("Getting rows from ovsdb for {}",arg0.getNodeIDString());
+//        ports = ovsdbConfigService.getRows(arg0, databaseName, ovsdbConfigService.getTableName(arg0, Port.class), "");
+//        logger.info("Getting done");
+//        for (Entry<UUID, Row<GenericTableSchema>> entry : ports.entrySet()) {
+//            logger.info("UUID: {} row: {}", entry.getKey().toString(), entry.getValue().toString());
+//        }
+
+        OvsdbConnectionService
+        connectionService = (OvsdbConnectionService)ServiceHelper.getGlobalInstance(OvsdbConnectionService.class, this);
+
+// Check for the ovsdb Connection as seen by the Plugin layer
+if (connectionService.getNodes().size() > 0) {
+Node node = connectionService.getNodes().get(0);
+Connection connection = connectionService.getConnection(node);
+OvsdbConnectionInfo connectionInfo = connection.getClient().getConnectionInfo();
+String identifier = "idididi";
+if (connectionInfo.getType().equals(OvsdbConnectionInfo.ConnectionType.PASSIVE)) {
+    identifier = connectionInfo.getRemoteAddress().getHostAddress()+":"+connectionInfo.getRemotePort();
+}
+System.out.println("Nodes = "+ connectionService.getNodes());
+
+        List<String> tables = ovsdbConfigService.getTables(arg0, databaseName);
+        System.out.println("Tables = "+tables);
+        if (tables != null) {
+            for (String table : tables) {
+                System.out.println("Table "+table);
+                ConcurrentMap<UUID, Row<GenericTableSchema>> rows = ovsdbConfigService.getRows(arg0, databaseName, table);
+                System.out.println(rows);
+            }
+        }
+}
+
         switch (arg1) {
         case ADDED:
             networkMonitor.addDevice(arg0);
             // TODO // configure queues for QoS
-
             break;
         case CHANGED:
             //TODO

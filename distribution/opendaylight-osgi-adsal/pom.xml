@@ -31,6 +31,31 @@ http://maven.apache.org/maven-v4_0_0.xsd">
       <artifactId>protocol_plugins.openflow</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>org.opendaylight.ovsdb</groupId>
+      <artifactId>plugin</artifactId>
+      <version>1.0.4-Helium-SR4</version>
+    </dependency>
+<dependency>
+  <groupId>org.opendaylight.ovsdb</groupId>
+  <artifactId>library</artifactId>
+  <version>1.0.4-Helium-SR4</version>
+</dependency>
+<dependency>
+<groupId>org.opendaylight.ovsdb</groupId>
+<artifactId>schema.openvswitch</artifactId>
+<version>1.0.4-Helium-SR4</version>
+</dependency>
+<dependency>
+<groupId>org.opendaylight.ovsdb</groupId>
+<artifactId>schema.hardwarevtep</artifactId>
+<version>1.0.4-Helium-SR4</version>
+</dependency>
+<dependency>
+  <groupId>org.opendaylight.ovsdb</groupId>
+  <artifactId>northbound</artifactId>
+  <version>0.6.4-Helium-SR4</version>
+</dependency>
 
     <!-- ODL Web -->
     <dependency>

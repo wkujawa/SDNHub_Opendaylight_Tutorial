@@ -65,6 +65,11 @@
       <groupId>org.opendaylight.controller</groupId>
       <artifactId>hosttracker</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.opendaylight.ovsdb</groupId>
+      <artifactId>plugin</artifactId>
+      <version>1.0.4-Helium-SR4</version>
+    </dependency>
 
     <!-- third party -->
     <dependency>
