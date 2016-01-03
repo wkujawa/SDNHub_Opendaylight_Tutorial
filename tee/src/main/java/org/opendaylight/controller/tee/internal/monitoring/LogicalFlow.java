@@ -25,6 +25,7 @@ public class LogicalFlow {
     protected final short priority;
     protected final String srcIP;
     protected final String dstIP;
+    protected int queue;
     //TODO add stats
 
     public LogicalFlow(Match match, String srcIP, String dstIP, int id, short priority) {
@@ -33,6 +34,7 @@ public class LogicalFlow {
         this.dstIP = dstIP;
         this.match = match;
         this.priority = priority;
+        this.queue = 0;
     }
 
     public int getId() {
@@ -51,11 +53,20 @@ public class LogicalFlow {
         return dstIP;
     }
 
+    public int getQueue() {
+        return queue;
+    }
+
+    public void setQueue(int queue) {
+        this.queue = queue;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
         result = prime * result + id;
+        result = prime * result + queue;
         result = prime * result + ((match == null) ? 0 : match.hashCode());
         return result;
     }
@@ -80,7 +91,7 @@ public class LogicalFlow {
     @Override
     public String toString() {
         return "LogicalFlow [id=" + id + ", match=" + match + ", priority="
-                + priority + ", srcIP=" + srcIP + ", dstIP=" + dstIP + "]";
+                + priority + ", srcIP=" + srcIP + ", dstIP=" + dstIP + ", queue="+queue+"]";
     }
 
     @Override
@@ -93,6 +104,8 @@ public class LogicalFlow {
             return false;
         LogicalFlow other = (LogicalFlow) obj;
         if (id != other.id)
+            return false;
+        if (queue != other.queue)
             return false;
         if (match == null) {
             if (other.match != null)

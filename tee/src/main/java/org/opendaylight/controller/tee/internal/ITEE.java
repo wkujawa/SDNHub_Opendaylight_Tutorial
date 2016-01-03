@@ -47,4 +47,6 @@ public interface ITEE {
     public Collection<Route> getRoutes(String srcIP, String dstIP);
 
     public boolean moveFlow(int fromRoute, int flow, int toRoute); //TODO error handling
+
+    public boolean changeQueue(int flow, int queue);
 }

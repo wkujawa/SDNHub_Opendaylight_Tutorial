@@ -1124,6 +1124,13 @@ public class TEE implements IListenDataPacket,
         }
     }
 
+    @Override
+    public boolean changeQueue(int flow, int queue) {
+        // TODO Auto-generated method stub
+        logger.warn("Setting queue {} on flow {}. NOT IMPLEMENTED", queue, flow);
+        return true;
+    }
+
     //////////////////////////
     // IFlowProgrammerListener
     //////////////////////////

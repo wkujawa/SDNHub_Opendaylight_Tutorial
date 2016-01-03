@@ -132,6 +132,22 @@ public class TEENorthbound {
         }
     }
 
+    @Path("/changeQueue/{flow}/{queue}")
+    @GET
+    public String changeQueue(
+            @PathParam("flow") String flow,
+            @PathParam("queue") String queue) {
+        ITEE tee = getTEE();
+        System.out.println("NB :: changeQueue of flow: "+ flow +" to "+queue);
+        if (tee.changeQueue(Integer.parseInt(flow), Integer.parseInt(queue))) {
+            Response.ok(); // Queue changed
+            return "OK";
+        } else {
+            Response.serverError(); // Queue not changed - wrong input
+            return "Error";
+        }
+    }
+
     private ITEE getTEE() {
         ITEE tee = (ITEE) ServiceHelper
                 .getGlobalInstance(ITEE.class, this);
