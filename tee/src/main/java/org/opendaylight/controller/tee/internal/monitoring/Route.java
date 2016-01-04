@@ -105,20 +105,22 @@ public class Route implements Comparable<Route>{
         return id;
     }
 
-    public void addFlow(LogicalFlow flow) {
+    public void addFlow(LogicalFlow flow, RoutesMap map) {
         flows.add(flow);
+        map.assignFlowToRoute(this, flow);
     }
 
     /**
      * Remove logical flow that wraps flow.
      * @param flow
      */
-    public void removeFlow(Flow flow) {
+    public void removeFlow(Flow flow, RoutesMap map) {
         Iterator<LogicalFlow> iter = flows.iterator();
         while(iter.hasNext()) {
             LogicalFlow lFlow = iter.next();
             if (lFlow.equals(flow)) {
                 logger.debug("Removed: {}", lFlow);
+                map.unassignFlowFromRoute(lFlow);
                 iter.remove();
             }
         }

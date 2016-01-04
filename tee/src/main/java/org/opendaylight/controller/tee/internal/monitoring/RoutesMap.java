@@ -35,21 +35,27 @@ public class RoutesMap {
     private static final Logger logger = LoggerFactory.getLogger(RoutesMap.class);
     private Map<Long, Map<Long, List<Route>>> routesMap;
     private Map<Integer, Route> routeById;
+    private Map<Integer, Route> routeByFlow;
+    private Map<Integer, LogicalFlow> flowById;
 
     public RoutesMap() {
         routesMap = new ConcurrentHashMap<Long, Map<Long,List<Route>>>();
         routeById = new ConcurrentHashMap<Integer, Route>();
+        routeByFlow = new ConcurrentHashMap<Integer, Route>();
+        flowById = new ConcurrentHashMap<Integer, LogicalFlow>();
     }
 
     public boolean isEmpty() {
-        if (routeById.isEmpty() && routesMap.isEmpty()) {
+        if (routeById.isEmpty() && routesMap.isEmpty() && routeByFlow.isEmpty() && flowById.isEmpty()) {
             return true;
-        } else if (!routeById.isEmpty() && !routesMap.isEmpty()) {
+        } else if (!routeById.isEmpty() && !routesMap.isEmpty() && !routeByFlow.isEmpty() && !flowById.isEmpty()) {
             return false;
         } else {
             logger.error("Something wrong, one map is empty and one is not");
             logger.error(routeById.toString());
             logger.error(routesMap.toString());
+            logger.error(routeByFlow.toString());
+            logger.error(flowById.toString());
             return false;
         }
     }
@@ -118,6 +124,10 @@ public class RoutesMap {
         return routeById.get(id);
     }
 
+    public Route getRouteByFlow(int flowId) {
+        return routeByFlow.get(flowId);
+    }
+
     public List<Route> getAllRoutes() {
         List<Route> allRoutes = new ArrayList<Route>();
         for (Map<Long, List<Route>> map : routesMap.values()) {
@@ -176,7 +186,7 @@ public class RoutesMap {
             // Removing from by IDs map
             for(List<Route> routes :srcMap.values()) {
                 for (Route route: routes) {
-                    routeById.remove(route.getId());
+                    clearHelperMaps(route);
                 }
             }
             routesMap.remove(srcMAC);
@@ -202,7 +212,7 @@ public class RoutesMap {
             // Removing from by IDs map
             for(List<Route> routes :srcMap.values()) {
                 for (Route route: routes) {
-                    routeById.remove(route.getId());
+                    clearHelperMaps(route);
                 }
             }
             srcMap.remove(dstMAC);
@@ -231,13 +241,35 @@ public class RoutesMap {
             List<Route> routes = getRoutes(srcMAC, dstMAC);
             if (!routes.isEmpty()) {
                 for (Route route : routes) {
-                    route.removeFlow(flow);
+                    route.removeFlow(flow, this);
                 }
             } else {
                 logger.warn("No routes between {} and {}", Utils.mac2str(srcMAC), Utils.mac2str(dstMAC));
             }
         } else {
             logger.error("Cannot remove flow from routes map. Flow doesn't have DL_SRC or DL_DST in Match");
+        }
+    }
+
+    public void assignFlowToRoute(Route route, LogicalFlow flow) {
+        routeByFlow.put(flow.getId(), route);
+        flowById.put(flow.getId(), flow);
+    }
+
+    public void unassignFlowFromRoute(LogicalFlow flow) {
+        routeByFlow.remove(flow.getId());
+        flowById.remove(flow.getId());
+    }
+
+    public LogicalFlow getFlowById(int flowId) {
+        return flowById.get(flowId);
+    }
+
+    private void clearHelperMaps(Route route) {
+        routeById.remove(route.getId());
+        for (LogicalFlow flow :route.getFlows()) {
+            routeByFlow.remove(flow.getId());
+            flowById.remove(flow.getId());
         }
     }
 }

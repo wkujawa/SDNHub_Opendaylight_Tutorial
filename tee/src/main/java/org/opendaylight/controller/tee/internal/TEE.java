@@ -34,6 +34,7 @@ import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
+import org.opendaylight.controller.sal.action.Enqueue;
 import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.ConstructionException;
 import org.opendaylight.controller.sal.core.Edge;
@@ -495,8 +496,8 @@ public class TEE implements IListenDataPacket,
      * @return
      */
     private boolean programRouteBidirect(Ethernet ethpacket, Route route) {
-        boolean ret1 = programRoute(makeLogicalFlow(ethpacket, false), route);
-        boolean ret2 = programRoute(makeLogicalFlow(ethpacket, true), route);
+        boolean ret1 = programRoute(makeLogicalFlow(ethpacket, false), route, 0);
+        boolean ret2 = programRoute(makeLogicalFlow(ethpacket, true), route, 0);
 
         return ret1 && ret2;
     }
@@ -554,10 +555,10 @@ public class TEE implements IListenDataPacket,
         return false;
     }
 
-    private boolean programRoute(LogicalFlow logicalFlow, Route route) {
+    private boolean programRoute(LogicalFlow logicalFlow, Route route, Integer queueId) {
         Match match = logicalFlow.getMatch();
-        route.addFlow(logicalFlow);
-        return programRoute(match, route);
+        route.addFlow(logicalFlow, routesMap);
+        return programRoute(match, route, queueId);
     }
 
     /**
@@ -569,7 +570,7 @@ public class TEE implements IListenDataPacket,
      * @param route - route to be programmed for given match
      * @return
      */
-    private boolean programRoute(Match match, Route route) {
+    private boolean programRoute(Match match, Route route, Integer queueId) {
         byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
         byte[] dstMac = (byte[]) match.getField(MatchType.DL_DST).getValue();
         HostNodeConnector srcConnector = getHostNodeConnectorByMac(srcMac);
@@ -611,7 +612,7 @@ public class TEE implements IListenDataPacket,
                 secondNodeConnector = link.getSourceConnector();
             }
 
-            ret &= programFlow(secondNodeConnector, match);
+            ret &= programFlow(secondNodeConnector, match, queueId);
 
             // Second node will be in next link
             currentNode = secondNodeConnector.getNode();
@@ -705,10 +706,13 @@ public class TEE implements IListenDataPacket,
         return newFlow;
     }
 
-    private boolean programFlow(NodeConnector connector, Match match) {
+    private boolean programFlow(NodeConnector connector, Match match, Integer queueId) {
         List<Action> actions = new ArrayList<Action>();
-        actions.add(new Output(connector));
-
+        if (queueId != null) {
+            actions.add(new Enqueue(connector, queueId));
+        } else {
+            actions.add(new Output(connector));
+        }
         Flow f = new Flow(match, actions);
         f.setIdleTimeout(FLOW_TIMEOUT);
         f.setPriority(FLOW_PRIORITY);
@@ -1114,7 +1118,7 @@ public class TEE implements IListenDataPacket,
         if (flowToMove != null) {
             logger.info("Moving flow "+flow);
             logger.info("1. Programming flow");
-            boolean ret =programRoute(flowToMove, dstRoute);
+            boolean ret =programRoute(flowToMove, dstRoute, flowToMove.getQueue());
             logger.info("2. Removing old flow");
             ret &= removeOlderFlow(flowToMove, srcRoute, dstRoute);
             return ret;
@@ -1125,10 +1129,24 @@ public class TEE implements IListenDataPacket,
     }
 
     @Override
-    public boolean changeQueue(int flow, int queue) {
+    public boolean changeQueue(int flowId, int queueId) {
         // TODO Auto-generated method stub
-        logger.warn("Setting queue {} on flow {}. NOT IMPLEMENTED", queue, flow);
-        return true;
+        logger.warn("Setting queue {} on flow {}. NOT IMPLEMENTED", queueId, flowId);
+
+        Route route = routesMap.getRouteByFlow(flowId);
+        LogicalFlow logicalFlow = routesMap.getFlowById(flowId);
+
+        if (route == null) {
+            logger.error("Couldn't find route for flow {}", flowId);
+            return false;
+        }
+
+        if (logicalFlow == null) {
+            logger.error("Couldn't find logical flow with id {}", flowId);
+            return false;
+        }
+
+        return programRoute(logicalFlow, route, queueId);
     }
 
     //////////////////////////
