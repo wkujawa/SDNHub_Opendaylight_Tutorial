@@ -1146,6 +1146,8 @@ public class TEE implements IListenDataPacket,
             return false;
         }
 
+        logicalFlow.setQueue(queueId);
+        route.removeFlow(logicalFlow);
         return programRoute(logicalFlow, route, queueId);
     }
 
