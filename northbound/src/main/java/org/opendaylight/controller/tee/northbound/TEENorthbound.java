@@ -16,8 +16,10 @@
  */
 package org.opendaylight.controller.tee.northbound;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import javax.ws.rs.GET;
@@ -128,6 +130,26 @@ public class TEENorthbound {
             return "OK";
         } else {
             Response.serverError(); // Flow not moved - wrong input
+            return "Error";
+        }
+    }
+
+    @Path("/multi/{switchId}/{otherIds}")
+    @GET
+    public String moveFlow(
+            @PathParam("switchId") String switchId,
+            @PathParam("otherIds") String otherIds) {
+        ITEE tee = getTEE();
+        System.out.println("NB :: multi flow: "+ switchId +" : "+otherIds);
+        List<String> ids = new ArrayList<>();
+        for (String id : otherIds.split(",")) {
+            ids.add(id);
+        }
+        if (tee.configureMulticast(switchId, ids)) {
+            Response.ok();
+            return "OK";
+        } else {
+            Response.serverError();
             return "Error";
         }
     }

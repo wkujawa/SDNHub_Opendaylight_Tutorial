@@ -34,9 +34,11 @@ import org.opendaylight.controller.hosttracker.IfIptoHost;
 import org.opendaylight.controller.hosttracker.IfNewHostNotify;
 import org.opendaylight.controller.hosttracker.hostAware.HostNodeConnector;
 import org.opendaylight.controller.sal.action.Action;
+import org.opendaylight.controller.sal.action.Drop;
 import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.ConstructionException;
 import org.opendaylight.controller.sal.core.Edge;
+import org.opendaylight.controller.sal.core.Host;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
 import org.opendaylight.controller.sal.core.Property;
@@ -112,6 +114,10 @@ public class TEE implements IListenDataPacket,
 
     private static short FLOW_PRIORITY = 100;  // default priority
     private static short HOST_FLOW_PRIORITY = 200;  // host flow priority
+
+    private static short MULTICAST_DROP_PRIORITY = 250;
+    private static short MULTICAST_FLOW_PRIORITY = 300;
+    private static short MULTICAST_PORT = 12345;
 
     // Last used id for Route
     private static int lastRouteId = 0;
@@ -365,6 +371,18 @@ public class TEE implements IListenDataPacket,
                 if (payload instanceof IPv4) {
                     InetAddress srcIP = NetUtils.getInetAddress(((IPv4) payload).getSourceAddress());
                     InetAddress dstIP = NetUtils.getInetAddress(((IPv4) payload).getDestinationAddress());
+
+                    IPv4 ipv4Packet = (IPv4) payload;
+                    //Multicast simulation - ignore UDP traffic on port 12345
+                    if (ipv4Packet.getPayload() instanceof UDP) {
+                        UDP udpPacket = (UDP) ipv4Packet.getPayload();
+                        if (udpPacket.getDestinationPort() == MULTICAST_PORT) {
+                            logger.info("Multicast packet (UDP::{}) - ignoring", MULTICAST_PORT);
+                            //TODO could add temporary rule to drop all packet with destination 12345 to not overload controler if proper rules for multicast are not installed before
+                            dropMulticast(inPkt.getIncomingNodeConnector());
+                            return PacketResult.CONSUME;
+                        }
+                    }
 
                     // Host discovery, known (and programmed) hosts are cached in arpTable
                     srcHostConnector = arpTable.getNodeConnector(BitBufferHelper.getLong(srcMAC));
@@ -726,6 +744,31 @@ public class TEE implements IListenDataPacket,
         }
     }
 
+    private Match makeMulticastMatch() {
+        Match match = new Match();
+        match.setField(new MatchField(MatchType.DL_TYPE, (short) 0x0800)); // Needed to match on NW_PROTO
+        match.setField(new MatchField(MatchType.NW_PROTO, (byte) 17));
+        match.setField(new MatchField(MatchType.TP_DST, MULTICAST_PORT));
+        return match;
+    }
+
+    private void dropMulticast(NodeConnector connector) {
+        Match match = makeMulticastMatch();
+        List<Action> actions = new ArrayList<Action>();
+        actions.add(new Drop());
+        Flow flow = new Flow(match, actions);
+        flow.setPriority(MULTICAST_DROP_PRIORITY);
+        logger.info("Programming multicast drop flow {} on {}", flow, connector.getNode());
+
+        Status status = programmer.addFlow(connector.getNode(), flow);
+
+        if (!status.isSuccess()) {
+            logger.warn(
+                    "SDN Plugin failed to program the flow: {}. The failure is: {}",
+                    flow, status.getDescription());
+        }
+    }
+
     private void clearRoute(byte[] srtMAC, byte[] dstMAC) {
         clearRouteOneWay(srtMAC, dstMAC);
         clearRouteOneWay(dstMAC, srtMAC);
@@ -760,6 +803,7 @@ public class TEE implements IListenDataPacket,
             }
         }
     }
+
 
     /**
      * Remove flows from logicalFlow that could be left after moving it from oldRoute to newRoute.
@@ -1122,6 +1166,67 @@ public class TEE implements IListenDataPacket,
             logger.error("Could't find flow "+flow);
             return false;
         }
+    }
+
+    @Override
+    public boolean configureMulticast(String switchId, Collection<String> clientsIds) {
+        logger.info("Multicast from switch {} to {}", switchId, clientsIds);
+
+        Match match = makeMulticastMatch();
+        List<Action> actions = new ArrayList<Action>();
+        Node mainSwitch;
+        Set<Node> nodes = switchManager.getNodes();
+        for (Node node : nodes) {
+            logger.info("Trying {}", node.getID());
+            if (node.getID().toString().equals(switchId)) {
+                logger.info("Found switch with id {}", switchId);
+                mainSwitch = node;
+                logger.info("Connectors {}", switchManager.getNodeConnectors(mainSwitch));
+                Device mainDevice = networkMonitor.getDevice(mainSwitch);
+                for (NodeConnector connector : switchManager.getNodeConnectors(mainSwitch)) {
+                    Link link = mainDevice.getLink(connector.getNodeConnectorIDString());
+                    if (link != null) {
+                        if (!link.isHostLink()) {
+                            NodeConnector secondConnector;
+                            if (link.getSourceConnector().equals(connector)) {
+                                secondConnector = link.getDestinationConnector();
+                            } else {
+                                secondConnector = link.getSourceConnector();
+                            }
+                            logger.info("Found second connector {} to {}", secondConnector.getNodeConnectorIDString(), secondConnector.getNode());
+                            if (clientsIds.contains(secondConnector.getNode().getID().toString())) {
+                                logger.info("Connector leads to one of the targets. Adding action");
+                                actions.add(new Output(connector));
+                            }
+                        } else {
+                            List<Host> hosts = topologyManager.getHostsAttachedToNodeConnector(connector);
+                            if (hosts != null) {
+                                for (Host host : hosts) {
+                                    if (clientsIds.contains(host.getNetworkAddressAsString())) {
+                                        logger.info("Connector leads to host {}. Adding action", host.getNetworkAddressAsString());
+                                        actions.add(new Output(connector));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Flow flow = new Flow(match, actions);
+                flow.setPriority(MULTICAST_FLOW_PRIORITY);
+                logger.info("Programming multicast flow {} on {}", flow, mainSwitch);
+
+                Status status = programmer.addFlow(mainSwitch, flow);
+
+                if (!status.isSuccess()) {
+                    logger.warn(
+                            "SDN Plugin failed to program the flow: {}. The failure is: {}",
+                            flow, status.getDescription());
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     //////////////////////////
