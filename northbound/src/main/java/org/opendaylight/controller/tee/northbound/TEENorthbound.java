@@ -136,7 +136,7 @@ public class TEENorthbound {
 
     @Path("/multi/{switchId}/{otherIds}")
     @GET
-    public String moveFlow(
+    public String multiFlow(
             @PathParam("switchId") String switchId,
             @PathParam("otherIds") String otherIds) {
         ITEE tee = getTEE();
@@ -146,6 +146,22 @@ public class TEENorthbound {
             ids.add(id);
         }
         if (tee.configureMulticast(switchId, ids)) {
+            Response.ok();
+            return "OK";
+        } else {
+            Response.serverError();
+            return "Error";
+        }
+    }
+
+    @Path("/multikpath/{switchId}/{otherId}")
+    @GET
+    public String multikpath(
+            @PathParam("switchId") String switchId,
+            @PathParam("otherId") String otherId) {
+        ITEE tee = getTEE();
+        System.out.println("NB :: multi k-path flow: "+ switchId +" -> "+otherId);
+        if (tee.configureMulticastKPath(switchId, otherId)) {
             Response.ok();
             return "OK";
         } else {

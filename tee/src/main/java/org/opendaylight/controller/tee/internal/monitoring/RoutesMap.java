@@ -114,6 +114,16 @@ public class RoutesMap {
         return routes.get(0);
     }
 
+    public Route getBestRoute(List<Route> routes) {
+        logger.debug("Looking for best path:");
+        for (Route route : routes) {
+            route.evaluate();
+            logger.debug(route.toString());
+        }
+        Collections.sort(routes);
+        return routes.get(0);
+    }
+
     public Route getRouteById(int id) {
         return routeById.get(id);
     }

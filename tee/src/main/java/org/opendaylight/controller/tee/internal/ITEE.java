@@ -49,4 +49,7 @@ public interface ITEE {
     public boolean moveFlow(int fromRoute, int flow, int toRoute); //TODO error handling
 
     public boolean configureMulticast(String switchId, Collection<String> clientsIds);
+
+    public boolean configureMulticastKPath(String switchId, String otherId);
+
 }

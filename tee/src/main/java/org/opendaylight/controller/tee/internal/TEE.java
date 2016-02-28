@@ -575,7 +575,11 @@ public class TEE implements IListenDataPacket,
     private boolean programRoute(LogicalFlow logicalFlow, Route route) {
         Match match = logicalFlow.getMatch();
         route.addFlow(logicalFlow);
-        return programRoute(match, route);
+        if (logicalFlow.isMulticast()) {
+            return programMulticastRoute(match, route);
+        } else {
+            return programRoute(match, route);
+        }
     }
 
     /**
@@ -629,12 +633,46 @@ public class TEE implements IListenDataPacket,
                 secondNodeConnector = link.getSourceConnector();
             }
 
-            ret &= programFlow(secondNodeConnector, match);
+            ret &= programFlow(secondNodeConnector, match, FLOW_PRIORITY, FLOW_TIMEOUT);
 
             // Second node will be in next link
             currentNode = secondNodeConnector.getNode();
         }
 
+        return ret;
+    }
+
+    private boolean programMulticastRoute(Match match, Route route) {
+        Node currentNode = route.getPath().getSource().getNode();
+        NodeConnector firstNodeConnector=null, secondNodeConnector = null;
+
+        List<Link> links = route.getPath().getEdges();
+        ListIterator<Link> listIterator = links.listIterator();
+
+        logger.info("Route:");
+        for (Link link: links) {
+            logger.info("{} ->  {}", link.getSourceConnector(),
+                    link.getDestinationConnector());
+        }
+
+        boolean ret = true;
+        while(listIterator.hasNext()) {
+            Link link = listIterator.next();
+            logger.info("Link {} -> {}", link.getSourceConnector(), link.getDestinationConnector());
+
+            if (currentNode.equals(link.getSourceConnector().getNode())) {
+                firstNodeConnector = link.getSourceConnector();
+                secondNodeConnector = link.getDestinationConnector();
+            } else {
+                firstNodeConnector = link.getDestinationConnector();
+                secondNodeConnector = link.getSourceConnector();
+            }
+
+            ret &= programFlow(firstNodeConnector, match, MULTICAST_FLOW_PRIORITY, (short) 0);
+
+            // Second node will be in next link
+            currentNode = secondNodeConnector.getNode();
+        }
         return ret;
     }
 
@@ -723,13 +761,24 @@ public class TEE implements IListenDataPacket,
         return newFlow;
     }
 
-    private boolean programFlow(NodeConnector connector, Match match) {
+    private LogicalFlow makeMulticastLogicalFlow(String switchId, String otherId){
+        Match match = makeMulticastMatch();
+        if (match == null) {
+            return null;
+        }
+
+        LogicalFlow newFlow = new LogicalFlow(match, switchId, otherId, lastFlowId++, MULTICAST_FLOW_PRIORITY);
+        logger.debug("Added: {}", newFlow);
+        return newFlow;
+    }
+
+    private boolean programFlow(NodeConnector connector, Match match, short priority, short timeout) {
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
 
         Flow f = new Flow(match, actions);
-        f.setIdleTimeout(FLOW_TIMEOUT);
-        f.setPriority(FLOW_PRIORITY);
+        f.setIdleTimeout(timeout);
+        f.setPriority(priority);
         logger.info("Programming flow {} on {}", f, connector.getNode()); //TODO change to debug
 
         Status status = programmer.addFlow(connector.getNode(), f);
@@ -829,6 +878,11 @@ public class TEE implements IListenDataPacket,
         List<Device> oldDevices = oldRoute.getPath().getVertices();
         List<Device> newDevices = newRoute.getPath().getVertices();
 
+        // Handle multicast flow different as they are simpler
+        if (logicalFlow.isMulticast()) {
+            return removeOlderMulticastFlow(match, oldDevices, newDevices);
+        }
+
         byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
         HostNodeConnector srcConnector = getHostNodeConnectorByMac(srcMac);
 
@@ -845,6 +899,38 @@ public class TEE implements IListenDataPacket,
         boolean ret = true;
         while(reverse ? listIterator.hasPrevious() : listIterator.hasNext()) {
             Device device = reverse ? listIterator.previous() : listIterator.next();
+            if (!newDevices.contains(device)) {
+                Flow flowShort = null;
+                for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
+                    Flow flow = flowOnNode.getFlow();
+                    if (match.equals(flow.getMatch())) {
+                        flowShort = flow.clone();
+                        flowShort.setIdleTimeout(MOVING_TIMEOUT);
+                        logger.info("Setting idle timeout {} by flow add for {}", MOVING_TIMEOUT, flowShort);
+                        Status status = programmer.addFlow(device.getNode(), flowShort);
+
+                        if (!status.isSuccess()) {
+                            logger.warn(
+                                    "SDN Plugin failed to modify the flow: {}. The failure is: {}",
+                                    flowShort, status.getDescription());
+                            ret = false;
+                        }
+                    }
+                }
+                if (flowShort == null) {
+                    logger.error("Didn't find flow for match: {} on {}", match, device.getNode());
+                    ret = false;
+                }
+            }
+        }
+        return ret;
+    }
+
+    private boolean removeOlderMulticastFlow(Match match, List<Device> oldDevices, List<Device> newDevices) {
+        ListIterator<Device> listIterator = oldDevices.listIterator();
+        boolean ret = true;
+        while(listIterator.hasNext()) {
+            Device device = listIterator.next();
             if (!newDevices.contains(device)) {
                 Flow flowShort = null;
                 for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
@@ -1112,8 +1198,14 @@ public class TEE implements IListenDataPacket,
 
     @Override
     public Collection<Route> getRoutes(String srcIP, String dstIP) {
-        Long srcMac = arpTable.getMac(srcIP);
-        Long dstMac = arpTable.getMac(dstIP);
+        Long srcMac = null, dstMac = null;
+        if (srcIP.contains(".")) { // Getting routes by IP
+            srcMac = arpTable.getMac(srcIP);
+            dstMac = arpTable.getMac(dstIP);
+        } else { // Getting routes between switches by switches id
+            srcMac = Long.parseLong(srcIP);
+            dstMac = Long.parseLong(dstIP);
+        }
         Collection<Route> routes = null;
 
         if (srcMac != null && dstMac != null) {
@@ -1227,6 +1319,44 @@ public class TEE implements IListenDataPacket,
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean configureMulticastKPath(String switchId, String otherId) {
+        Node firstSwitch = null, secondSwitch = null;
+        Set<Node> nodes = switchManager.getNodes();
+        logger.info("Getting nodes for switches {} and {}", switchId, otherId);
+        for (Node node : nodes) {
+            if (node.getID().toString().equals(switchId)) {
+                firstSwitch = node;
+            }
+            if (node.getID().toString().equals(otherId)) {
+                secondSwitch = node;
+            }
+        }
+        assert (firstSwitch != null && secondSwitch != null);
+        firstSwitch.getID();
+        List<Route> routes;
+        logger.info("Looking for k-paths");
+        routes = pathsToRoutes(networkMonitor.getKShortestPath(firstSwitch, secondSwitch, K));
+
+        logger.info("--- K Shortest Paths ---");
+        for (Route route : routes) {
+            logger.info("Path:");
+            for (Device device : route.getPath().getVertices()) {
+                logger.info("Device: "+device);
+            }
+            logger.info("Cost: {} PDR: {}",route.getCost(),route.getPacketsDropped());
+        }
+        logger.info("------------------------");
+
+        //TODO IDs might have conflict, maybe add some constant 0x5e000000
+        logger.info("Adding routes for {} {}", (long) firstSwitch.getID(), (long) secondSwitch.getID());
+        routesMap.addRoutes(routes, (long) firstSwitch.getID(), (long) secondSwitch.getID());
+        // Multicast route is directed      // routesMap.addRoutes(routes, (long) secondSwitch.getID(), (long) secondSwitch.getID());
+        Route bestRoute = routesMap.getBestRoute(routes);
+        logger.info("Best route id: {}", bestRoute.getId());
+        return programRoute(makeMulticastLogicalFlow(switchId, otherId), bestRoute);
     }
 
     //////////////////////////
