@@ -1265,7 +1265,7 @@ public class TEE implements IListenDataPacket,
         logger.info("Multicast from switch {} to {}", switchId, clientsIds);
 
         Match match = makeMulticastMatch();
-        List<Action> actions = new ArrayList<Action>();
+        Set<Action> actions = new  HashSet<Action>();
         Node mainSwitch;
         Set<Node> nodes = switchManager.getNodes();
         for (Node node : nodes) {
