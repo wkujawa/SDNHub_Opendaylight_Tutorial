@@ -668,7 +668,13 @@ public class TEE implements IListenDataPacket,
                 secondNodeConnector = link.getSourceConnector();
             }
 
-            ret &= programFlow(firstNodeConnector, match, MULTICAST_FLOW_PRIORITY, (short) 0);
+            Set<Action> actionsSet = new HashSet<>();
+            actionsSet.addAll(getMulticastActions(firstNodeConnector.getNode()));
+            List<Action> actions = new ArrayList<Action>();
+            actions.addAll(actionsSet);
+            actions.add(new Output(firstNodeConnector));
+
+            ret &= programFlow(firstNodeConnector.getNode(), match, actions, MULTICAST_FLOW_PRIORITY, (short) 0);
 
             // Second node will be in next link
             currentNode = secondNodeConnector.getNode();
@@ -775,13 +781,16 @@ public class TEE implements IListenDataPacket,
     private boolean programFlow(NodeConnector connector, Match match, short priority, short timeout) {
         List<Action> actions = new ArrayList<Action>();
         actions.add(new Output(connector));
+        return programFlow(connector.getNode(), match, actions, priority, timeout);
+    }
 
+    private boolean programFlow(Node node, Match match, List<Action> actions, short priority, short timeout) {
         Flow f = new Flow(match, actions);
         f.setIdleTimeout(timeout);
         f.setPriority(priority);
-        logger.info("Programming flow {} on {}", f, connector.getNode()); //TODO change to debug
+        logger.info("Programming flow {} on {}", f, node); //TODO change to debug
 
-        Status status = programmer.addFlow(connector.getNode(), f);
+        Status status = programmer.addFlow(node, f);
 
         if (!status.isSuccess()) {
             logger.warn(
@@ -816,6 +825,10 @@ public class TEE implements IListenDataPacket,
                     "SDN Plugin failed to program the flow: {}. The failure is: {}",
                     flow, status.getDescription());
         }
+    }
+
+    private void moveMulticastFlow(LogicalFlow flow, Route srcRoute, Route dstRoute){
+        //TODO
     }
 
     private void clearRoute(byte[] srtMAC, byte[] dstMAC) {
@@ -880,7 +893,9 @@ public class TEE implements IListenDataPacket,
 
         // Handle multicast flow different as they are simpler
         if (logicalFlow.isMulticast()) {
-            return removeOlderMulticastFlow(match, oldDevices, newDevices);
+            // TMP not removing old flows, need to rethink and fix (actions can be cummulated, which ones to remove)
+            //return removeOlderMulticastFlow(match, oldDevices, newDevices);
+            return true;
         }
 
         byte[] srcMac = (byte[]) match.getField(MatchType.DL_SRC).getValue();
@@ -926,6 +941,7 @@ public class TEE implements IListenDataPacket,
         return ret;
     }
 
+    //TODO Make sure that we do not remove too much
     private boolean removeOlderMulticastFlow(Match match, List<Device> oldDevices, List<Device> newDevices) {
         ListIterator<Device> listIterator = oldDevices.listIterator();
         boolean ret = true;
@@ -935,7 +951,7 @@ public class TEE implements IListenDataPacket,
                 Flow flowShort = null;
                 for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
                     Flow flow = flowOnNode.getFlow();
-                    if (match.equals(flow.getMatch())) {
+                    if (match.equals(flow.getMatch()) && flow.getPriority() == MULTICAST_FLOW_PRIORITY) {
                         flowShort = flow.clone();
                         flowShort.setIdleTimeout(MOVING_TIMEOUT);
                         logger.info("Setting idle timeout {} by flow add for {}", MOVING_TIMEOUT, flowShort);
@@ -956,6 +972,20 @@ public class TEE implements IListenDataPacket,
             }
         }
         return ret;
+    }
+
+    private List<Action> getMulticastActions(Node node) {
+        Match multicastMatch = makeMulticastMatch();
+        List<FlowOnNode> flowsOnNode = statisticsManager.getFlows(node);
+        for (FlowOnNode flowOnNode : flowsOnNode) {
+            Flow flow = flowOnNode.getFlow();
+            if (flow.getMatch().equals(multicastMatch) && flow.getPriority() == MULTICAST_FLOW_PRIORITY) {
+                logger.info("Found existing multicast flow with actions: {}", flow.getActions());
+                return flow.getActions();
+            }
+         }
+
+        return new LinkedList<>();
     }
 
     //TODO update
@@ -1248,12 +1278,16 @@ public class TEE implements IListenDataPacket,
         }
 
         if (flowToMove != null) {
+            if (flowToMove.isMulticast()) {
+                moveMulticastFlow(flow, srcRoute, dstRoute);
+            } else {
             logger.info("Moving flow "+flow);
             logger.info("1. Programming flow");
             boolean ret =programRoute(flowToMove, dstRoute);
             logger.info("2. Removing old flow");
             ret &= removeOlderFlow(flowToMove, srcRoute, dstRoute);
             return ret;
+            }
         } else {
             logger.error("Could't find flow "+flow);
             return false;
@@ -1265,7 +1299,7 @@ public class TEE implements IListenDataPacket,
         logger.info("Multicast from switch {} to {}", switchId, clientsIds);
 
         Match match = makeMulticastMatch();
-        Set<Action> actions = new  HashSet<Action>();
+        Set<Action> actionsSet = new  HashSet<Action>();
         Node mainSwitch;
         Set<Node> nodes = switchManager.getNodes();
         for (Node node : nodes) {
@@ -1288,7 +1322,7 @@ public class TEE implements IListenDataPacket,
                             logger.info("Found second connector {} to {}", secondConnector.getNodeConnectorIDString(), secondConnector.getNode());
                             if (clientsIds.contains(secondConnector.getNode().getID().toString())) {
                                 logger.info("Connector leads to one of the targets. Adding action");
-                                actions.add(new Output(connector));
+                                actionsSet.add(new Output(connector));
                             }
                         } else {
                             List<Host> hosts = topologyManager.getHostsAttachedToNodeConnector(connector);
@@ -1296,14 +1330,16 @@ public class TEE implements IListenDataPacket,
                                 for (Host host : hosts) {
                                     if (clientsIds.contains(host.getNetworkAddressAsString())) {
                                         logger.info("Connector leads to host {}. Adding action", host.getNetworkAddressAsString());
-                                        actions.add(new Output(connector));
+                                        actionsSet.add(new Output(connector));
                                     }
                                 }
                             }
                         }
                     }
                 }
-
+                actionsSet.addAll(getMulticastActions(mainSwitch));
+                List<Action> actions = new ArrayList<Action>();
+                actions.addAll(actionsSet);
                 Flow flow = new Flow(match, actions);
                 flow.setPriority(MULTICAST_FLOW_PRIORITY);
                 logger.info("Programming multicast flow {} on {}", flow, mainSwitch);
