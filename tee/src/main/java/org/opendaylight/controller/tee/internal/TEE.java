@@ -827,8 +827,112 @@ public class TEE implements IListenDataPacket,
         }
     }
 
-    private void moveMulticastFlow(LogicalFlow flow, Route srcRoute, Route dstRoute){
-        //TODO
+    /**
+     * Gets action from old route on given node.
+     * @param node
+     * @param route
+     * @return
+     */
+    private Action getOldMulticastAction(Node node, Route route) {
+        Node currentNode = node;
+        NodeConnector firstNodeConnector=null, secondNodeConnector = null;
+
+        List<Link> links = route.getPath().getEdges();
+        ListIterator<Link> listIterator = links.listIterator();
+
+        while(listIterator.hasNext()) {
+            Link link = listIterator.next();
+            logger.info("Link {} -> {}", link.getSourceConnector(), link.getDestinationConnector());
+
+            if (currentNode.equals(link.getSourceConnector().getNode())) {
+                firstNodeConnector = link.getSourceConnector();
+                secondNodeConnector = link.getDestinationConnector();
+            } else {
+                firstNodeConnector = link.getDestinationConnector();
+                secondNodeConnector = link.getSourceConnector();
+            }
+
+            if (firstNodeConnector.getNode().equals(node)) {
+                return new Output(firstNodeConnector);
+            }
+
+            // Second node will be in next link
+            currentNode = secondNodeConnector.getNode();
+        }
+        return null;
+    }
+
+    private boolean moveMulticastFlow(LogicalFlow flow, Route srcRoute, Route dstRoute){
+        Node currentNode = dstRoute.getPath().getTarget().getNode();
+        NodeConnector firstNodeConnector=null;
+
+        List<Link> links = dstRoute.getPath().getEdges();
+        ListIterator<Link> listIterator = links.listIterator(links.size());
+
+        logger.info("Route:");
+        for (Link link: links) {
+            logger.info("{} ->  {}", link.getSourceConnector(),
+                    link.getDestinationConnector());
+        }
+
+        // Reconfigure flows in reversed order. If switch was in old route remove that action.
+        boolean ret = true;
+        while(listIterator.hasPrevious()) {
+            Link link = listIterator.previous();
+            logger.info("Link {} -> {}", link.getSourceConnector(), link.getDestinationConnector());
+
+            if (currentNode.equals(link.getSourceConnector().getNode())) {
+                firstNodeConnector = link.getDestinationConnector();
+            } else {
+                firstNodeConnector = link.getSourceConnector();
+            }
+
+            Set<Action> actionsSet = new HashSet<>();
+            actionsSet.addAll(getMulticastActions(firstNodeConnector.getNode()));
+            Action toRemoveAction = getOldMulticastAction(firstNodeConnector.getNode(), srcRoute);
+            if (toRemoveAction != null) {
+                if (!actionsSet.remove(toRemoveAction)) {
+                    logger.warn("Could not find {} on {} that should be removed from action set.", toRemoveAction, firstNodeConnector.getNode());
+                }
+            }
+            actionsSet.add(new Output(firstNodeConnector));
+            List<Action> actions = new ArrayList<Action>();
+            actions.addAll(actionsSet);
+
+            ret &= programFlow(firstNodeConnector.getNode(), flow.getMatch(), actions, MULTICAST_FLOW_PRIORITY, (short) 0);
+
+            // Second node will be in next link
+            currentNode = firstNodeConnector.getNode();
+        }
+
+        //Remove flows from switches that are not in new route
+        for (Device device : srcRoute.getPath().getVertices()) {
+            Node node = device.getNode();
+            Action action = getOldMulticastAction(node, srcRoute);
+            if (action != null) {
+                List<Action> actions = getMulticastActions(node);
+                actions.remove(action);
+                short priority;
+                if (!actions.isEmpty()) {
+                    priority = MULTICAST_FLOW_PRIORITY;
+                } else { // There is no action so we should delete this flow, but easier is to add no action and that will cause drop
+                    priority = MULTICAST_DROP_PRIORITY;
+                }
+                ret &= programFlow(firstNodeConnector.getNode(), flow.getMatch(), actions, priority, (short) 0);
+
+
+            } else {
+                if (!node.equals(srcRoute.getPath().getTarget().getNode())) {
+                    logger.error("There should not be action only for target node.");
+                }
+            }
+        }
+
+        // Update flow in routes
+        dstRoute.addFlow(flow);
+        srcRoute.removeFlow(flow);
+
+        return ret;
     }
 
     private void clearRoute(byte[] srtMAC, byte[] dstMAC) {
@@ -919,39 +1023,6 @@ public class TEE implements IListenDataPacket,
                 for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
                     Flow flow = flowOnNode.getFlow();
                     if (match.equals(flow.getMatch())) {
-                        flowShort = flow.clone();
-                        flowShort.setIdleTimeout(MOVING_TIMEOUT);
-                        logger.info("Setting idle timeout {} by flow add for {}", MOVING_TIMEOUT, flowShort);
-                        Status status = programmer.addFlow(device.getNode(), flowShort);
-
-                        if (!status.isSuccess()) {
-                            logger.warn(
-                                    "SDN Plugin failed to modify the flow: {}. The failure is: {}",
-                                    flowShort, status.getDescription());
-                            ret = false;
-                        }
-                    }
-                }
-                if (flowShort == null) {
-                    logger.error("Didn't find flow for match: {} on {}", match, device.getNode());
-                    ret = false;
-                }
-            }
-        }
-        return ret;
-    }
-
-    //TODO Make sure that we do not remove too much
-    private boolean removeOlderMulticastFlow(Match match, List<Device> oldDevices, List<Device> newDevices) {
-        ListIterator<Device> listIterator = oldDevices.listIterator();
-        boolean ret = true;
-        while(listIterator.hasNext()) {
-            Device device = listIterator.next();
-            if (!newDevices.contains(device)) {
-                Flow flowShort = null;
-                for(FlowOnNode flowOnNode : statisticsManager.getFlows(device.getNode())) {
-                    Flow flow = flowOnNode.getFlow();
-                    if (match.equals(flow.getMatch()) && flow.getPriority() == MULTICAST_FLOW_PRIORITY) {
                         flowShort = flow.clone();
                         flowShort.setIdleTimeout(MOVING_TIMEOUT);
                         logger.info("Setting idle timeout {} by flow add for {}", MOVING_TIMEOUT, flowShort);
@@ -1279,7 +1350,8 @@ public class TEE implements IListenDataPacket,
 
         if (flowToMove != null) {
             if (flowToMove.isMulticast()) {
-                moveMulticastFlow(flow, srcRoute, dstRoute);
+                logger.info("Moving multicast flow "+flow);
+                return moveMulticastFlow(flowToMove, srcRoute, dstRoute);
             } else {
             logger.info("Moving flow "+flow);
             logger.info("1. Programming flow");
