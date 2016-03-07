@@ -50,6 +50,8 @@ public interface ITEE {
 
     public boolean configureMulticast(String switchId, Collection<String> clientsIds);
 
+    public boolean removeMulticast(String switchId, Collection<String> clientsIds);
+
     public boolean configureMulticastKPath(String switchId, String otherId);
 
 }

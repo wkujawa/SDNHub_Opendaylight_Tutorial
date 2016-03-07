@@ -907,20 +907,19 @@ public class TEE implements IListenDataPacket,
 
         //Remove flows from switches that are not in new route
         for (Device device : srcRoute.getPath().getVertices()) {
+            if (dstRoute.getPath().getVertices().contains(device)) {
+                continue;
+            }
             Node node = device.getNode();
             Action action = getOldMulticastAction(node, srcRoute);
             if (action != null) {
                 List<Action> actions = getMulticastActions(node);
                 actions.remove(action);
-                short priority;
                 if (!actions.isEmpty()) {
-                    priority = MULTICAST_FLOW_PRIORITY;
-                } else { // There is no action so we should delete this flow, but easier is to add no action and that will cause drop
-                    priority = MULTICAST_DROP_PRIORITY;
+                    ret &= programFlow(node, flow.getMatch(), actions, MULTICAST_FLOW_PRIORITY, (short) 0);
+                } else { // There is no action so we should delete this flow
+                    ret &= removeMulticastFlow(node);
                 }
-                ret &= programFlow(firstNodeConnector.getNode(), flow.getMatch(), actions, priority, (short) 0);
-
-
             } else {
                 if (!node.equals(srcRoute.getPath().getTarget().getNode())) {
                     logger.error("There should not be action only for target node.");
@@ -933,6 +932,24 @@ public class TEE implements IListenDataPacket,
         srcRoute.removeFlow(flow);
 
         return ret;
+    }
+
+    private boolean removeMulticastFlow(Node node) {
+        List<FlowOnNode> flowsOnNode = statisticsManager.getFlows(node);
+        Match match = makeMulticastMatch();
+        for (FlowOnNode flowOnNode : flowsOnNode) {
+            Flow flow = flowOnNode.getFlow();
+            if (flow.getMatch().equals(match) && flow.getPriority() == MULTICAST_FLOW_PRIORITY) {
+                Status status = programmer.removeFlow(node, flow);
+                if (status.isSuccess()) {
+                    return true;
+                } else {
+                    logger.error("Unable to remove {} from {} : {}", flow,  node, status.getDescription());
+                    return false;
+                }
+            }
+        }
+        return false;
     }
 
     private void clearRoute(byte[] srtMAC, byte[] dstMAC) {
@@ -1414,6 +1431,74 @@ public class TEE implements IListenDataPacket,
                 actions.addAll(actionsSet);
                 Flow flow = new Flow(match, actions);
                 flow.setPriority(MULTICAST_FLOW_PRIORITY);
+                logger.info("Programming multicast flow {} on {}", flow, mainSwitch);
+
+                Status status = programmer.addFlow(mainSwitch, flow);
+
+                if (!status.isSuccess()) {
+                    logger.warn(
+                            "SDN Plugin failed to program the flow: {}. The failure is: {}",
+                            flow, status.getDescription());
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean removeMulticast(String switchId,
+            Collection<String> clientsIds) {
+        logger.info("Multicast on switch {} remove {}", switchId, clientsIds);
+
+        Match match = makeMulticastMatch();
+        Set<Action> actionsSet = new HashSet<>();
+        Node mainSwitch;
+        Set<Node> nodes = switchManager.getNodes();
+        for (Node node : nodes) {
+            if (node.getID().toString().equals(switchId)) {
+                logger.info("Found switch with id {}", switchId);
+                mainSwitch = node;
+                actionsSet.addAll(getMulticastActions(mainSwitch));
+
+                logger.info("Connectors {}", switchManager.getNodeConnectors(mainSwitch));
+                Device mainDevice = networkMonitor.getDevice(mainSwitch);
+                for (NodeConnector connector : switchManager.getNodeConnectors(mainSwitch)) {
+                    Link link = mainDevice.getLink(connector.getNodeConnectorIDString());
+                    if (link != null) {
+                        if (!link.isHostLink()) {
+                            NodeConnector secondConnector;
+                            if (link.getSourceConnector().equals(connector)) {
+                                secondConnector = link.getDestinationConnector();
+                            } else {
+                                secondConnector = link.getSourceConnector();
+                            }
+                            logger.info("Found second connector {} to {}", secondConnector.getNodeConnectorIDString(), secondConnector.getNode());
+                            if (clientsIds.contains(secondConnector.getNode().getID().toString())) {
+                                logger.info("Connector leads to one of the targets. Adding action");
+                                actionsSet.remove(new Output(connector));
+                            }
+                        } else {
+                            List<Host> hosts = topologyManager.getHostsAttachedToNodeConnector(connector);
+                            if (hosts != null) {
+                                for (Host host : hosts) {
+                                    if (clientsIds.contains(host.getNetworkAddressAsString())) {
+                                        logger.info("Connector leads to host {}. Adding action", host.getNetworkAddressAsString());
+                                        actionsSet.remove(new Output(connector));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                List<Action> actions = new ArrayList<Action>();
+                actions.addAll(actionsSet);
+                Flow flow = new Flow(match, actions);
+                if (actions.isEmpty()) {
+                    return removeMulticastFlow(mainSwitch);
+                }
+                flow.setPriority(MULTICAST_FLOW_PRIORITY);
+
                 logger.info("Programming multicast flow {} on {}", flow, mainSwitch);
 
                 Status status = programmer.addFlow(mainSwitch, flow);

@@ -154,6 +154,26 @@ public class TEENorthbound {
         }
     }
 
+    @Path("/multidel/{switchId}/{otherIds}")
+    @GET
+    public String multiFlowDel(
+            @PathParam("switchId") String switchId,
+            @PathParam("otherIds") String otherIds) {
+        ITEE tee = getTEE();
+        System.out.println("NB :: multi flow: "+ switchId +" : "+otherIds);
+        List<String> ids = new ArrayList<>();
+        for (String id : otherIds.split(",")) {
+            ids.add(id);
+        }
+        if (tee.removeMulticast(switchId, ids)) {
+            Response.ok();
+            return "OK";
+        } else {
+            Response.serverError();
+            return "Error";
+        }
+    }
+
     @Path("/multikpath/{switchId}/{otherId}")
     @GET
     public String multikpath(
