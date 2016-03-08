@@ -107,6 +107,7 @@ public class TEE implements IListenDataPacket,
     private boolean useTpDst = false;
     private boolean useTpSrc = false;
     private boolean useNwProto = false;
+    private boolean useToS = false;
     // Flow timeouts, read from configuration
     private static short MOVING_TIMEOUT = 10; // idle timeout for flow to be removed
     private static short FLOW_TIMEOUT = 60;  // timeout for ordinary flow
@@ -273,6 +274,9 @@ public class TEE implements IListenDataPacket,
             matchFieldsStr.toUpperCase();
             if (matchFieldsStr.contains("NW_PROTO")) {
                 useNwProto = true;
+            }
+            if (matchFieldsStr.contains("TOS")) {
+                useToS = true;
             }
             if (matchFieldsStr.contains("TP_SRC")) {
                 useTpSrc = true;
@@ -496,8 +500,16 @@ public class TEE implements IListenDataPacket,
      * @return
      */
     private boolean programRouteBidirect(Ethernet ethpacket, Route route) {
-        boolean ret1 = programRoute(makeLogicalFlow(ethpacket, false), route, 0);
-        boolean ret2 = programRoute(makeLogicalFlow(ethpacket, true), route, 0);
+        int queueId = 0;
+        if (ethpacket.getPayload() instanceof IPv4) {
+            queueId = ((IPv4)ethpacket.getPayload()).getDiffServ();
+            if (queueId < 0 || queueId > 3) {
+                logger.error("Unsupported ToS value {}. Setting to 0.", queueId);
+                queueId = 0;
+            }
+        }
+        boolean ret1 = programRoute(makeLogicalFlow(ethpacket, false), route, queueId);
+        boolean ret2 = programRoute(makeLogicalFlow(ethpacket, true), route, queueId);
 
         return ret1 && ret2;
     }
@@ -677,6 +689,9 @@ public class TEE implements IListenDataPacket,
             }
             if (useTpDst && tpDst != null) {
                 match.setField(new MatchField(MatchType.TP_DST, tpDst));
+            }
+            if (useToS) {
+                match.setField(new MatchField(MatchType.NW_TOS, ipPacket.getDiffServ()));
             }
         } else {
             logger.error("Not IPv4 packet. Not making match.");
