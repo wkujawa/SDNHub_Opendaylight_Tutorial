@@ -1383,8 +1383,27 @@ public class TEE implements IListenDataPacket,
         }
     }
 
+    private String unifyId(String id) {
+        if (id.contains(":")) {
+            id = id.replace(":", "");
+            return String.valueOf(Long.parseLong(id, 16));
+        }
+        return id;
+    }
+
+    private Collection<String> unifyIds(Collection<String> ids) {
+        Collection<String> unifiedIds = new LinkedList<>();
+        for (String id : ids) {
+            unifiedIds.add(unifyId(id));
+        }
+        return unifiedIds;
+    }
+
+
     @Override
     public boolean configureMulticast(String switchId, Collection<String> clientsIds) {
+        switchId = unifyId(switchId);
+        clientsIds = unifyIds(clientsIds);
         logger.info("Multicast from switch {} to {}", switchId, clientsIds);
 
         Match match = makeMulticastMatch();
@@ -1449,6 +1468,8 @@ public class TEE implements IListenDataPacket,
     @Override
     public boolean removeMulticast(String switchId,
             Collection<String> clientsIds) {
+        switchId = unifyId(switchId);
+        clientsIds = unifyIds(clientsIds);
         logger.info("Multicast on switch {} remove {}", switchId, clientsIds);
 
         Match match = makeMulticastMatch();
@@ -1516,6 +1537,8 @@ public class TEE implements IListenDataPacket,
 
     @Override
     public boolean configureMulticastKPath(String switchId, String otherId) {
+        switchId = unifyId(switchId);
+        otherId = unifyId(otherId);
         Node firstSwitch = null, secondSwitch = null;
         Set<Node> nodes = switchManager.getNodes();
         logger.info("Getting nodes for switches {} and {}", switchId, otherId);
@@ -1527,7 +1550,10 @@ public class TEE implements IListenDataPacket,
                 secondSwitch = node;
             }
         }
-        assert (firstSwitch != null && secondSwitch != null);
+        if (firstSwitch == null || secondSwitch == null) {
+            logger.error("Not found switches by ids: {}={} {}={}", switchId, firstSwitch, otherId, secondSwitch);
+            return false;
+        }
         firstSwitch.getID();
         List<Route> routes;
         logger.info("Looking for k-paths");
